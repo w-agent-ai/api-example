@@ -40,9 +40,8 @@ https://www.h-agent.ai/mcp
 - `examples/registered/go`: registered-user Go demos.
 - `examples/registered/cpp`: registered-user C++ demos.
 - `examples/anonymous/python`: anonymous x402 payment demos.
-
-The CPU person detection preprocessing demo is not included in this repository
-yet. It will be published separately after the package is refreshed.
+- `examples/cpu_detect`: local CPU person detection preprocessing demo. It
+  extracts person sequence folders from videos before calling the Sequence API.
 
 ## Registered User Flow
 
@@ -71,6 +70,23 @@ MCP demo:
 ```bash
 python3 examples/registered/python/mcp_demo.py
 ```
+
+### Local Video Preprocessing
+
+Users can either upload full videos directly to W-Agent, or process videos
+locally first and upload the extracted person sequences. The CPU preprocessing
+demo is shared by registered and anonymous flows:
+
+```bash
+cd examples/cpu_detect
+cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+cmake --build cpp/build -j
+cpp/build/video_sequence_demo /path/to/video.mp4
+```
+
+The output directory `video_gait_sequences/` contains one folder per detected
+person sequence. Each folder can be uploaded through the registered Sequence API
+demos or the anonymous x402 Sequence API demos.
 
 ### Go
 
