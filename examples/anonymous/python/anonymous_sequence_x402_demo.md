@@ -33,7 +33,7 @@ cp /path/to/your/images/* ./seq/
 ## 运行
 
 ```bash
-python3 examples/anonymous/python/x402_sequence_demo.py
+python3 examples/anonymous/python/anonymous_sequence_x402_demo.py
 ```
 
 ## 预期

@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[3]
 # in this registered-user flow.
 USER_EMAIL = os.environ.get("GAIT_REGISTERED_EMAIL", "user@example.com")
 API_KEY = ""
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "https://www.h-agent.ai/api")
+BASE_URL = os.environ.get("GAIT_API_BASE_URL", "http://116.198.210.0:3005")
 
 # Sequence input:
 #   examples/seqs may contain nested folders.

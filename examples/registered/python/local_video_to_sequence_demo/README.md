@@ -12,5 +12,5 @@ Run:
 pip install requests opencv-python numpy
 export GAIT_REGISTERED_API_KEY='gak_your_api_key'
 export GAIT_API_BASE_URL='https://www.h-agent.ai/api'
-python3 examples/registered/python/local_video_sequence_demo/local_video_sequence_demo.py /path/to/video.mp4
+python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
 ```

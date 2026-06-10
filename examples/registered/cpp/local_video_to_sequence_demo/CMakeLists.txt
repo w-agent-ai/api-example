@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(registered_cpp_local_video_sequence_demo)
+project(registered_cpp_local_video_to_sequence_demo)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

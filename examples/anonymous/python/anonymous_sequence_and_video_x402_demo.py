@@ -44,7 +44,7 @@ ROOT = Path(__file__).resolve().parents[3]
 # 402 Payment Required challenge, signs an x402 payment payload with an EVM
 # wallet private key, and retries the same API operation with payment headers.
 EVM_PRIVATE_KEY = ""
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "https://www.h-agent.ai/api")
+BASE_URL = os.environ.get("GAIT_API_BASE_URL", "http://116.198.210.0:3005")
 
 # Sequence input:
 #   examples/seqs may contain nested folders.
@@ -718,7 +718,7 @@ def read_json(path: Path) -> Any:
 def load_private_key() -> str:
     private_key = EVM_PRIVATE_KEY.strip() or os.environ.get("GAIT_TEST_WALLET_PRIVATE_KEY", "").strip()
     if not private_key:
-        raise RuntimeError("fill EVM_PRIVATE_KEY in examples/anonymous/python/x402_batch_demo.py or export GAIT_TEST_WALLET_PRIVATE_KEY")
+        raise RuntimeError("fill EVM_PRIVATE_KEY in examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py or export GAIT_TEST_WALLET_PRIVATE_KEY")
     return private_key if private_key.startswith("0x") else "0x" + private_key
 
 

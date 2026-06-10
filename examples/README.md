@@ -13,14 +13,14 @@ parallel:
 
 - `registered/`: registered users who call APIs with an API Key.
 - `anonymous/`: anonymous agents who call public APIs with x402 payment.
-- `registered/python/local_video_sequence_demo/`: Python local video-to-sequence
+- `registered/python/local_video_to_sequence_demo/`: Python local video-to-sequence
   demo for registered users.
-- `registered/cpp/local_video_sequence_demo/`: C++ local video-to-sequence demo
+- `registered/cpp/local_video_to_sequence_demo/`: C++ local video-to-sequence demo
   for registered users.
-- `registered/go/local_video_sequence_demo/`: Go orchestration demo that runs
+- `registered/go/local_video_to_sequence_demo/`: Go orchestration demo that runs
   local video-to-sequence preprocessing and uploads with the Go Sequence API
   demo.
-- `anonymous/python/local_video_sequence_demo/`: Python local video-to-sequence
+- `anonymous/python/local_video_to_sequence_demo/`: Python local video-to-sequence
   demo for anonymous x402 calls.
 
 ## Registered User
@@ -45,7 +45,7 @@ Each sequence folder is uploaded to the Sequence API.
 Registered-user examples:
 
 ```bash
-python3 examples/registered/python/batch_demo.py
+python3 examples/registered/python/sequence_and_video_api_demo.py
 cd examples/registered/go/sequence_demo && ./build.sh && ./registered_sequence_demo
 cd examples/registered/cpp/sequence_demo && ./build.sh && ./build/registered_sequence_demo
 ```
@@ -53,7 +53,7 @@ cd examples/registered/cpp/sequence_demo && ./build.sh && ./build/registered_seq
 Anonymous x402 example:
 
 ```bash
-python3 examples/anonymous/python/x402_sequence_demo.py
+python3 examples/anonymous/python/anonymous_sequence_x402_demo.py
 ```
 
 ## Input Mode 2: Video Input
@@ -64,7 +64,7 @@ does server-side detection, tracking, sequence parsing, and result generation.
 Registered-user examples:
 
 ```bash
-python3 examples/registered/python/batch_demo.py
+python3 examples/registered/python/sequence_and_video_api_demo.py
 cd examples/registered/go/video_demo && ./build.sh && ./registered_video_demo
 cd examples/registered/cpp/video_demo && ./build.sh && ./build/registered_video_demo
 ```
@@ -72,7 +72,7 @@ cd examples/registered/cpp/video_demo && ./build.sh && ./build/registered_video_
 Anonymous x402 example:
 
 ```bash
-python3 examples/anonymous/python/x402_batch_demo.py
+python3 examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py
 ```
 
 ## Input Mode 3: Local Video To Sequence
@@ -83,10 +83,10 @@ chosen language package. It extracts person sequence folders from a video, then
 uploads those folders with the Sequence API.
 
 ```bash
-python3 examples/registered/python/local_video_sequence_demo/local_video_sequence_demo.py /path/to/video.mp4
-./examples/registered/cpp/local_video_sequence_demo/run_local_video_sequence_demo.sh /path/to/video.mp4
-./examples/registered/go/local_video_sequence_demo/run_local_video_sequence_demo.sh /path/to/video.mp4
-python3 examples/anonymous/python/local_video_sequence_demo/local_video_sequence_demo.py /path/to/video.mp4
+python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
+./examples/registered/cpp/local_video_to_sequence_demo/run_local_video_to_sequence_api_demo.sh /path/to/video.mp4
+./examples/registered/go/local_video_to_sequence_demo/run_local_video_to_sequence_api_demo.sh /path/to/video.mp4
+python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_sequence_x402_demo.py /path/to/video.mp4
 ```
 
 Each local demo writes one folder per detected person sequence and then uploads
@@ -108,7 +108,7 @@ after uploading frames. Gait Pose is a standalone billable API, currently
 priced separately from full sequence parsing at `$0.10 / 1K frames`.
 
 ```bash
-python3 examples/registered/python/batch_demo.py
+python3 examples/registered/python/sequence_and_video_api_demo.py
 ```
 
 The MCP demo calls the integrated `/mcp` JSON-RPC endpoint directly. It lists
@@ -122,13 +122,13 @@ the public HTTP APIs and the anonymous Python x402 demos below, not the MCP
 JSON-RPC tool flow.
 
 ```bash
-python3 examples/registered/python/mcp_demo.py
+python3 examples/registered/python/mcp_api_demo.py
 ```
 
 ### Go
 
 The Go package contains registered-user sequence and video API demos. Its
-`local_video_sequence_demo` runs local preprocessing first, then uploads the
+`local_video_to_sequence_demo` runs local preprocessing first, then uploads the
 generated sequence folders with the Go sequence demo.
 
 ```bash
@@ -171,11 +171,11 @@ same operation with payment headers.
 Current anonymous demos are Python only:
 
 ```bash
-python3 examples/anonymous/python/x402_batch_demo.py
+python3 examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py
 ```
 
 ```bash
-python3 examples/anonymous/python/x402_sequence_demo.py
+python3 examples/anonymous/python/anonymous_sequence_x402_demo.py
 ```
 
 Other languages can call the same public HTTP APIs, but they need compatible

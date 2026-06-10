@@ -15,7 +15,7 @@ import (
 
 const (
 	// Public API endpoint. Change this to your own deployment if needed.
-	defaultBaseURL = "https://www.h-agent.ai/api"
+	defaultBaseURL = "http://116.198.210.0:3005"
 
 	// Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 	defaultAPIKey = ""

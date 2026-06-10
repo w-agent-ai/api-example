@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Anonymous x402 local video-to-sequence demo.
+Registered-user local video-to-sequence demo.
 
 Input is a local video file. The demo first extracts person sequence folders on
-the client CPU, then uploads every extracted sequence folder to the public
-Sequence API and pays with x402.
+the client CPU, then uploads every extracted sequence folder to the registered
+Sequence API with an API Key.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ PYTHON_DEMO_DIR = CURRENT_DIR.parent
 sys.path.insert(0, str(PYTHON_DEMO_DIR))
 sys.path.insert(0, str(CURRENT_DIR))
 
-import x402_batch_demo  # noqa: E402
+import sequence_and_video_api_demo  # noqa: E402
 from persondet_numpy import Config, run_video  # noqa: E402
 
 
@@ -36,7 +36,8 @@ def main() -> int:
         print(f"video file not found: {video_path}", file=sys.stderr)
         return 2
 
-    private_key = x402_batch_demo.load_private_key()
+    api_key = sequence_and_video_api_demo.load_api_key()
+    headers = {"Authorization": f"Bearer {api_key}"}
 
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     old_cwd = Path.cwd()
@@ -47,19 +48,19 @@ def main() -> int:
         os.chdir(old_cwd)
 
     sequence_root = OUTPUT_ROOT / f"{video_path.stem}_gait_sequences"
-    seq_dirs = x402_batch_demo.collect_leaf_sequence_dirs(sequence_root)
+    seq_dirs = sequence_and_video_api_demo.collect_leaf_sequence_dirs(sequence_root)
     if not seq_dirs:
         print(f"no sequence folders generated under {sequence_root}", file=sys.stderr)
         return 1
 
-    x402_batch_demo.RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    x402_batch_demo.check_api_health()
+    sequence_and_video_api_demo.RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    sequence_and_video_api_demo.check_api_health()
     with requests.Session() as session:
         for index, seq_dir in enumerate(seq_dirs, start=1):
-            print(f"[local anonymous sequence {index}/{len(seq_dirs)}] {seq_dir}")
-            result = x402_batch_demo.run_public_sequence_x402(session, private_key, seq_dir)
-            out_path = x402_batch_demo.RESULT_DIR / "local_video_sequence" / f"{seq_dir.name}.json"
-            x402_batch_demo.write_json(out_path, result)
+            print(f"[local sequence {index}/{len(seq_dirs)}] {seq_dir}")
+            result = sequence_and_video_api_demo.run_registered_sequence(session, headers, seq_dir)
+            out_path = sequence_and_video_api_demo.RESULT_DIR / "local_video_sequence" / f"{seq_dir.name}.json"
+            sequence_and_video_api_demo.write_json(out_path, result)
             print(f"uploaded_sequence={seq_dir} result_file={out_path}")
     return 0
 
