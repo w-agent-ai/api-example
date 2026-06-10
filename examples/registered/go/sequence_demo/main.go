@@ -16,7 +16,7 @@ import (
 
 const (
 	// Public API endpoint. Change this to your own deployment if needed.
-	defaultBaseURL = "https://www.h-agent.ai/api"
+	defaultBaseURL = "http://116.198.210.0:3005"
 
 	// Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 	defaultAPIKey = ""
@@ -77,10 +77,11 @@ func main() {
 	apiKey := registeredAPIKey()
 
 	// Step 1: read all sequence frames from the local directory.
-	frames, err := collectFrames(defaultSeqDir)
+	seqDir := sequenceDir()
+	frames, err := collectFrames(seqDir)
 	must(err)
 	if len(frames) == 0 {
-		must(fmt.Errorf("no image frames under %s", defaultSeqDir))
+		must(fmt.Errorf("no image frames under %s", seqDir))
 	}
 
 	// Step 2: create a sequence task. The server returns pre-signed upload URLs.
@@ -187,6 +188,14 @@ func baseURL() string {
 	value := strings.TrimSpace(os.Getenv("GAIT_API_BASE_URL"))
 	if value == "" {
 		value = defaultBaseURL
+	}
+	return value
+}
+
+func sequenceDir() string {
+	value := strings.TrimSpace(os.Getenv("GAIT_SEQUENCE_DIR"))
+	if value == "" {
+		value = defaultSeqDir
 	}
 	return value
 }

@@ -13,8 +13,15 @@ parallel:
 
 - `registered/`: registered users who call APIs with an API Key.
 - `anonymous/`: anonymous agents who call public APIs with x402 payment.
-- `cpu_detect/`: client-side CPU person detection demo that extracts sequence
-  images from videos before calling the Sequence API.
+- `registered/python/local_video_sequence_demo/`: Python local video-to-sequence
+  demo for registered users.
+- `registered/cpp/local_video_sequence_demo/`: C++ local video-to-sequence demo
+  for registered users.
+- `registered/go/local_video_sequence_demo/`: Go orchestration demo that runs
+  local video-to-sequence preprocessing and uploads with the Go Sequence API
+  demo.
+- `anonymous/python/local_video_sequence_demo/`: Python local video-to-sequence
+  demo for anonymous x402 calls.
 
 ## Registered User
 
@@ -71,26 +78,19 @@ python3 examples/anonymous/python/x402_batch_demo.py
 ## Input Mode 3: Local Video To Sequence
 
 If a client wants to process videos locally and only upload tracked person
-sequence images to W-Agent, use the CPU person detection demo. It extracts
-person sequence folders from a video. The output can then be uploaded with the
-same Sequence API demos listed in Input Mode 1.
+sequence images to W-Agent, use the local video-to-sequence demo inside the
+chosen language package. It extracts person sequence folders from a video, then
+uploads those folders with the Sequence API.
 
 ```bash
-cd examples/cpu_detect
-cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
-cmake --build cpp/build -j
-cpp/build/video_sequence_demo /path/to/video.mp4
+python3 examples/registered/python/local_video_sequence_demo/local_video_sequence_demo.py /path/to/video.mp4
+./examples/registered/cpp/local_video_sequence_demo/run_local_video_sequence_demo.sh /path/to/video.mp4
+./examples/registered/go/local_video_sequence_demo/run_local_video_sequence_demo.sh /path/to/video.mp4
+python3 examples/anonymous/python/local_video_sequence_demo/local_video_sequence_demo.py /path/to/video.mp4
 ```
 
-The output contains one folder per detected person sequence under
-`video_gait_sequences/`. Each folder is an ordered image sequence that can be
-uploaded with the registered or anonymous sequence demos.
-
-Python reference/demo path:
-
-```bash
-python3 examples/cpu_detect/python_demo/video_sequence_demo.py /path/to/video.mp4
-```
+Each local demo writes one folder per detected person sequence and then uploads
+the generated sequence folders.
 
 ## Language Packages
 
@@ -127,9 +127,9 @@ python3 examples/registered/python/mcp_demo.py
 
 ### Go
 
-The Go package contains registered-user sequence and video API demos. For local
-video-to-sequence input, run `examples/cpu_detect` first and pass the extracted
-sequence folder to the Go sequence demo.
+The Go package contains registered-user sequence and video API demos. Its
+`local_video_sequence_demo` runs local preprocessing first, then uploads the
+generated sequence folders with the Go sequence demo.
 
 ```bash
 cd examples/registered/go/sequence_demo

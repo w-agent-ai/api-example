@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(persondet_cpp)
+project(registered_cpp_local_video_sequence_demo)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,25 +10,17 @@ if(PERSONDET_ENABLE_NATIVE AND NOT MSVC)
     add_compile_options($<$<CONFIG:Release>:-march=native>)
 endif()
 
+find_package(OpenMP QUIET)
+find_package(OpenCV REQUIRED)
+
 add_library(persondet STATIC
     persondet.cpp
     persondet_weights.cpp
 )
 target_include_directories(persondet PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-find_package(OpenMP QUIET)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(persondet PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
-find_package(OpenCV QUIET)
-if(OpenCV_FOUND)
-    add_executable(image_detect_demo image_detect_demo.cpp)
-    target_link_libraries(image_detect_demo persondet ${OpenCV_LIBS})
-
-    add_executable(video_sequence_demo video_sequence_demo.cpp)
-    target_link_libraries(video_sequence_demo persondet ${OpenCV_LIBS})
-
-    add_executable(onnx_demo onnx_demo.cpp)
-    target_link_libraries(onnx_demo ${OpenCV_LIBS})
-endif()
+add_executable(local_video_sequence_extractor video_sequence_demo.cpp)
+target_link_libraries(local_video_sequence_extractor persondet ${OpenCV_LIBS})

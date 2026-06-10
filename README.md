@@ -40,8 +40,14 @@ https://www.h-agent.ai/mcp
 - `examples/registered/go`: registered-user Go demos.
 - `examples/registered/cpp`: registered-user C++ demos.
 - `examples/anonymous/python`: anonymous x402 payment demos.
-- `examples/cpu_detect`: local CPU person detection preprocessing demo. It
-  extracts person sequence folders from videos before calling the Sequence API.
+- `examples/registered/python/local_video_sequence_demo`: Python local
+  video-to-sequence demo for registered users.
+- `examples/registered/cpp/local_video_sequence_demo`: C++ local
+  video-to-sequence demo for registered users.
+- `examples/registered/go/local_video_sequence_demo`: Go orchestration demo
+  that runs local preprocessing and uploads with the Go Sequence API demo.
+- `examples/anonymous/python/local_video_sequence_demo`: Python local
+  video-to-sequence demo for anonymous x402 calls.
 
 Download packages are grouped by language. Inside each language package, the
 three input modes are parallel:
@@ -84,20 +90,18 @@ python3 examples/registered/python/mcp_demo.py
 ### Local Video-To-Sequence Input
 
 Users can either upload full videos directly to W-Agent, or process videos
-locally first and upload the extracted person sequences. The CPU preprocessing
-demo is included in the language packages and is shared by registered and
-anonymous flows:
+locally first and upload the extracted person sequences. Each language package
+has its own local video-to-sequence entry:
 
 ```bash
-cd examples/cpu_detect
-cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
-cmake --build cpp/build -j
-cpp/build/video_sequence_demo /path/to/video.mp4
+python3 examples/registered/python/local_video_sequence_demo/local_video_sequence_demo.py /path/to/video.mp4
+./examples/registered/cpp/local_video_sequence_demo/run_local_video_sequence_demo.sh /path/to/video.mp4
+./examples/registered/go/local_video_sequence_demo/run_local_video_sequence_demo.sh /path/to/video.mp4
+python3 examples/anonymous/python/local_video_sequence_demo/local_video_sequence_demo.py /path/to/video.mp4
 ```
 
-The output directory `video_gait_sequences/` contains one folder per detected
-person sequence. Each folder can be uploaded through the registered Sequence API
-demos or the anonymous x402 Sequence API demos.
+Each local demo writes one folder per detected person sequence and then uploads
+the generated sequence folders.
 
 ### Go
 

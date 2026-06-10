@@ -15,7 +15,7 @@
 #include <nlohmann/json.hpp>
 
 // Public API endpoint. Change this to your own deployment if needed.
-static const std::string kBaseURL = "https://www.h-agent.ai/api";
+static const std::string kBaseURL = "http://116.198.210.0:3005";
 
 // Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 static const std::string kAPIKey = "";
@@ -162,13 +162,22 @@ std::vector<std::string> collectFrames(const std::string& dir) {
   return frames;
 }
 
+std::string sequenceDir() {
+  const char* value = std::getenv("GAIT_SEQUENCE_DIR");
+  if (value && *value) {
+    return value;
+  }
+  return kSeqDir;
+}
+
 int main() {
   try {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     // Step 1: read all sequence frames from the local directory.
-    std::vector<std::string> frames = collectFrames(kSeqDir);
+    std::string seqDir = sequenceDir();
+    std::vector<std::string> frames = collectFrames(seqDir);
   if (frames.empty()) {
-    throw std::runtime_error("no image frames under " + kSeqDir);
+    throw std::runtime_error("no image frames under " + seqDir);
   }
 
   // Step 2: create a sequence task. The server returns one upload slot per
