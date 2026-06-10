@@ -1,11 +1,18 @@
 # W-Agent API demos
 
-This directory separates demos by caller type:
+This directory separates API demos by caller type, and download packages are
+grouped by language. Inside each language package, the three input modes are
+parallel:
+
+```text
+1. Sequence input: upload an already tracked person image sequence.
+2. Video input: upload a full video directly to the Video API.
+3. Local video-to-sequence input: process a video locally, then upload the
+   extracted person sequence folders to the Sequence API.
+```
 
 - `registered/`: registered users who call APIs with an API Key.
 - `anonymous/`: anonymous agents who call public APIs with x402 payment.
-- `seqs/`: local test sequence images.
-- `video/`: local test videos.
 - `cpu_detect/`: client-side CPU person detection demo that extracts sequence
   images from videos before calling the Sequence API.
 
@@ -23,12 +30,50 @@ Set your registered API Key before running registered-user demos:
 export GAIT_REGISTERED_API_KEY='gak_your_api_key'
 ```
 
-## Client-Side Video Preprocessing
+## Input Mode 1: Sequence Input
+
+Use this when the client already has tracked/cropped person image sequences.
+Each sequence folder is uploaded to the Sequence API.
+
+Registered-user examples:
+
+```bash
+python3 examples/registered/python/batch_demo.py
+cd examples/registered/go/sequence_demo && ./build.sh && ./registered_sequence_demo
+cd examples/registered/cpp/sequence_demo && ./build.sh && ./build/registered_sequence_demo
+```
+
+Anonymous x402 example:
+
+```bash
+python3 examples/anonymous/python/x402_sequence_demo.py
+```
+
+## Input Mode 2: Video Input
+
+Use this when the client wants to upload a full video directly. The service
+does server-side detection, tracking, sequence parsing, and result generation.
+
+Registered-user examples:
+
+```bash
+python3 examples/registered/python/batch_demo.py
+cd examples/registered/go/video_demo && ./build.sh && ./registered_video_demo
+cd examples/registered/cpp/video_demo && ./build.sh && ./build/registered_video_demo
+```
+
+Anonymous x402 example:
+
+```bash
+python3 examples/anonymous/python/x402_batch_demo.py
+```
+
+## Input Mode 3: Local Video To Sequence
 
 If a client wants to process videos locally and only upload tracked person
 sequence images to W-Agent, use the CPU person detection demo. It extracts
-person sequence folders from a video, and the output can then be uploaded with
-either registered-user Sequence API demos or anonymous x402 Sequence API demos.
+person sequence folders from a video. The output can then be uploaded with the
+same Sequence API demos listed in Input Mode 1.
 
 ```bash
 cd examples/cpu_detect
@@ -46,6 +91,8 @@ Python reference/demo path:
 ```bash
 python3 examples/cpu_detect/python_demo/video_sequence_demo.py /path/to/video.mp4
 ```
+
+## Language Packages
 
 ### Python
 
@@ -80,7 +127,9 @@ python3 examples/registered/python/mcp_demo.py
 
 ### Go
 
-The Go demos have no third-party dependencies.
+The Go package contains registered-user sequence and video API demos. For local
+video-to-sequence input, run `examples/cpu_detect` first and pass the extracted
+sequence folder to the Go sequence demo.
 
 ```bash
 cd examples/registered/go/sequence_demo
@@ -96,7 +145,9 @@ cd examples/registered/go/video_demo
 
 ### C++
 
-The C++ demos require `libcurl` and `nlohmann/json`.
+The C++ package contains registered-user sequence and video API demos plus the
+CPU video-to-sequence preprocessing source. API demos require `libcurl` and
+`nlohmann/json`.
 
 ```bash
 sudo apt-get install -y libcurl4-openssl-dev nlohmann-json3-dev

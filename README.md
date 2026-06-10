@@ -43,6 +43,16 @@ https://www.h-agent.ai/mcp
 - `examples/cpu_detect`: local CPU person detection preprocessing demo. It
   extracts person sequence folders from videos before calling the Sequence API.
 
+Download packages are grouped by language. Inside each language package, the
+three input modes are parallel:
+
+```text
+1. Sequence input: upload an already tracked person image sequence.
+2. Video input: upload a full video directly to the Video API.
+3. Local video-to-sequence input: process a video locally, then upload the
+   extracted person sequence folders to the Sequence API.
+```
+
 ## Registered User Flow
 
 Registered-user APIs use an API Key:
@@ -71,11 +81,12 @@ MCP demo:
 python3 examples/registered/python/mcp_demo.py
 ```
 
-### Local Video Preprocessing
+### Local Video-To-Sequence Input
 
 Users can either upload full videos directly to W-Agent, or process videos
 locally first and upload the extracted person sequences. The CPU preprocessing
-demo is shared by registered and anonymous flows:
+demo is included in the language packages and is shared by registered and
+anonymous flows:
 
 ```bash
 cd examples/cpu_detect
