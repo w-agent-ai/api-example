@@ -177,4 +177,4 @@ python3 examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py
 
 ## Contact
 
-Email: support@mail.w-agent.cn
+Email: support@w-agent.cn

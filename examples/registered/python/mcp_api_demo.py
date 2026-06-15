@@ -250,17 +250,17 @@ def summarize_gait_pose(payload):
 
 def summarize_sequence_parse(payload):
     """Keep feature vectors out of stdout and store only dimensions/counts."""
-    result = payload.get("result") or payload
+    sequences = payload.get("sequences") or []
+    result = sequences[0] if sequences else {}
     return {
         "task_id": payload.get("task_id", ""),
         "status": payload.get("status", ""),
+        "sequence_count": payload.get("sequence_count") or len(sequences),
         "sequence_id": result.get("sequence_id", ""),
         "frame_count": result.get("frame_count", 0),
         "gait_feature_dim": len(result.get("gait_feature") or []),
         "face_feature_dim": len(result.get("face_feature") or []),
         "reid_feature_dim": len(result.get("reid_feature") or []),
-        "pose_2ds_count": len(result.get("pose_2ds") or []),
-        "pose_3ds_count": len(result.get("pose_3ds") or []),
         "billing": result.get("billing"),
     }
 

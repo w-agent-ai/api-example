@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"os"
@@ -106,6 +107,69 @@ func main() {
 		fmt.Printf("first_pose3d_frames=%d\n", len(first.Pose3Ds))
 		fmt.Printf("first_emotions=%d\n", len(first.Emotions))
 	}
+	if len(result.Sequences) >= 2 {
+		sim := compareSequences(result.Sequences[0], result.Sequences[1])
+		fmt.Printf("same_person_threshold=%.2f\n", samePersonThreshold)
+		fmt.Printf("seq0_seq1_gait_similarity=%.6f\n", sim.Gait)
+		fmt.Printf("seq0_seq1_reid_similarity=%.6f\n", sim.ReID)
+		fmt.Printf("seq0_seq1_face_similarity=%.6f\n", sim.Face)
+		fmt.Printf("seq0_seq1_fused_similarity=%.6f\n", sim.Fused)
+		fmt.Printf("seq0_seq1_same_person_likely=%t\n", sim.Fused > samePersonThreshold)
+	}
+}
+
+const samePersonThreshold = 0.7
+
+type similarity struct {
+	Gait  float64
+	ReID  float64
+	Face  float64
+	Fused float64
+}
+
+func compareSequences(left, right sequenceResult) similarity {
+	gait := dotProduct(left.GaitFeature, right.GaitFeature)
+	reid := dotProduct(left.ReIDFeature, right.ReIDFeature)
+	face := dotProduct(left.FaceFeature, right.FaceFeature)
+	return similarity{Gait: gait, ReID: reid, Face: face, Fused: fusedIdentitySimilarity(face, gait, reid)}
+}
+
+func dotProduct(left, right []float64) float64 {
+	used := len(left)
+	if len(right) < used {
+		used = len(right)
+	}
+	var score float64
+	for i := 0; i < used; i++ {
+		score += left[i] * right[i]
+	}
+	return score
+}
+
+func fusedIdentitySimilarity(faceSim, gaitSim, reidSim float64) float64 {
+	result := math.Max(gaitSim, 0.1)
+	if faceSim > 0.45 {
+		result = math.Max(gaitSim, 0.7)
+	} else if faceSim > 0.35 {
+		result *= 1.1
+	} else if faceSim > 0.4 {
+		result *= 1.1
+	} else if faceSim != 0 && faceSim < 0.1 {
+		result *= 0.9
+	}
+	if reidSim > 0.8 {
+		result *= 1.1
+	}
+	if faceSim > 0.5 {
+		result *= 1.1
+	}
+	if faceSim > 0.6 {
+		result *= 1.1
+	}
+	if result > 1 {
+		return 1
+	}
+	return result
 }
 
 // doJSON sends an authenticated JSON request to the registered-user API.

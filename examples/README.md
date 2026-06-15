@@ -13,6 +13,9 @@ parallel:
 
 - `registered/`: registered users who call APIs with an API Key.
 - `anonymous/`: anonymous agents who call public APIs with x402 payment.
+- `trial/`: no-registration trial demos limited by server-side IP/fingerprint quota.
+- `browser/`: browser clients. Browser is a usage method and can call trial or
+  registered-user APIs.
 - `registered/python/local_video_to_sequence_demo/`: Python local video-to-sequence
   demo for registered users.
 - `registered/cpp/local_video_to_sequence_demo/`: C++ local video-to-sequence demo
@@ -22,6 +25,9 @@ parallel:
   demo.
 - `anonymous/python/local_video_to_sequence_demo/`: Python local video-to-sequence
   demo for anonymous x402 calls.
+- `browser/client/`: pure browser client for trial and registered calls.
+- `trial/python/`: Python no-registration trial client for 图搜万物,
+  sequence parsing, and Gait Pose.
 
 ## Registered User
 
@@ -41,6 +47,9 @@ export GAIT_REGISTERED_API_KEY='gak_your_api_key'
 
 Use this when the client already has tracked/cropped person image sequences.
 Each sequence folder is uploaded to the Sequence API.
+The server runs `GetSplitSeqFeature`, so one uploaded track can return multiple
+single-person results in `sequences` when tracking mixed different people or
+contains stray frames.
 
 Registered-user examples:
 
@@ -100,8 +109,14 @@ The Python registered-user demo processes all leaf sequence directories under
 `examples/seqs` and all videos under `examples/video`, then writes JSON results
 and feature similarity reports under `tmp/registered_batch_results`.
 
-Result JSON may include `pose_2ds`, `pose_3ds`, and `emotions` when the SDK
-returns them.
+Result JSON includes `emotions` when the SDK returns them. Sequence parsing no
+longer embeds `pose_2ds` or `pose_3ds`; those keypoints are provided only by
+the standalone `POST /v1/sequences/{task_id}/gait-pose` API.
+
+Similarity reports first compute dot-product scores for `gait_feature`,
+`reid_feature`, and `face_feature`, then fuse the three scores into
+`fused_similarity`. The default same-person threshold is `0.7`; scores above
+`0.7` are usually likely to be the same person.
 
 The registered sequence demos also call `POST /v1/sequences/{task_id}/gait-pose`
 after uploading frames. Gait Pose is a standalone billable API, currently

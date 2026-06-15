@@ -24,6 +24,11 @@ const (
 	// A sequence is a directory of cropped person images belonging to one track.
 	defaultSeqDir = "../../../seqs/nonuser/day_cl01/40-day_cl01-22949/imgs"
 	timeout       = 10 * time.Minute
+
+	// When comparing two parsed sequences, compute face/gait/ReID dot products
+	// and fuse them with fusedIdentitySimilarity. Scores above this threshold
+	// are usually likely to be the same person.
+	samePersonThreshold = 0.7
 )
 
 // uploadSlot is returned by POST /v1/sequences.
@@ -49,17 +54,15 @@ type parseFrame struct {
 // sequenceResult is the important part of the parse result.
 // Feature vectors are usually 512-dimensional. face_feature may be empty when
 // no usable face is found in the sequence.
-// pose_2ds, pose_3ds, and emotions are optional SDK outputs, so demos only
-// print their dimensions when present.
+// emotions is an optional SDK output, so the demo only prints its size when
+// present.
 type sequenceResult struct {
-	SequenceID  string      `json:"sequence_id"`
-	FrameCount  int         `json:"frame_count"`
-	GaitFeature []float64   `json:"gait_feature"`
-	ReIDFeature []float64   `json:"reid_feature"`
-	FaceFeature []float64   `json:"face_feature"`
-	Pose2Ds     [][]float64 `json:"pose_2ds"`
-	Pose3Ds     [][]float64 `json:"pose_3ds"`
-	Emotions    []int       `json:"emotions"`
+	SequenceID  string    `json:"sequence_id"`
+	FrameCount  int       `json:"frame_count"`
+	GaitFeature []float64 `json:"gait_feature"`
+	ReIDFeature []float64 `json:"reid_feature"`
+	FaceFeature []float64 `json:"face_feature"`
+	Emotions    []int     `json:"emotions"`
 }
 
 // gaitPoseResult is returned by POST /v1/sequences/{task_id}/gait-pose.
@@ -110,9 +113,10 @@ func main() {
 	must(doJSON(client, apiKey, http.MethodPost, "/v1/sequences/"+created.TaskID+"/gait-pose", map[string]any{"frames": parseFrames}, &gaitPose))
 
 	var parsed struct {
-		TaskID   string         `json:"task_id"`
-		Status   string         `json:"status"`
-		Sequence sequenceResult `json:"sequence"`
+		TaskID        string           `json:"task_id"`
+		Status        string           `json:"status"`
+		SequenceCount int              `json:"sequence_count"`
+		Sequences     []sequenceResult `json:"sequences"`
 	}
 
 	// Step 5: start synchronous sequence parsing. Registered users are billed
@@ -121,22 +125,30 @@ func main() {
 
 	// Step 6: fetch the stored result. This is useful if the caller wants to
 	// retrieve the result again later by task_id.
-	var result sequenceResult
+	var result struct {
+		TaskID        string           `json:"task_id"`
+		Status        string           `json:"status"`
+		SequenceCount int              `json:"sequence_count"`
+		Sequences     []sequenceResult `json:"sequences"`
+	}
 	must(doJSON(client, apiKey, http.MethodGet, "/v1/sequences/"+created.TaskID+"/result", nil, &result))
+	if len(result.Sequences) == 0 {
+		panic("sequence result is empty")
+	}
+	first := result.Sequences[0]
 
 	fmt.Printf("task_id=%s\n", created.TaskID)
 	fmt.Printf("status=%s\n", parsed.Status)
-	fmt.Printf("sequence_id=%s\n", result.SequenceID)
-	fmt.Printf("frame_count=%d\n", result.FrameCount)
-	fmt.Printf("gait_feature_dim=%d\n", len(result.GaitFeature))
-	fmt.Printf("reid_feature_dim=%d\n", len(result.ReIDFeature))
-	fmt.Printf("face_feature_dim=%d\n", len(result.FaceFeature))
+	fmt.Printf("sequence_count=%d\n", parsed.SequenceCount)
+	fmt.Printf("sequence_id=%s\n", first.SequenceID)
+	fmt.Printf("frame_count=%d\n", first.FrameCount)
+	fmt.Printf("gait_feature_dim=%d\n", len(first.GaitFeature))
+	fmt.Printf("reid_feature_dim=%d\n", len(first.ReIDFeature))
+	fmt.Printf("face_feature_dim=%d\n", len(first.FaceFeature))
+	fmt.Printf("same_person_threshold=%.2f\n", samePersonThreshold)
 	fmt.Printf("gait_pose_status=%s\n", gaitPose.Status)
 	fmt.Printf("gait_pose_pose2d_frames=%d\n", len(gaitPose.Result.Pose2Ds))
 	fmt.Printf("gait_pose_pose3d_frames=%d\n", len(gaitPose.Result.Pose3Ds))
-	fmt.Printf("pose2d_frames=%d\n", len(result.Pose2Ds))
-	fmt.Printf("pose3d_frames=%d\n", len(result.Pose3Ds))
-	fmt.Printf("emotions=%d\n", len(result.Emotions))
 }
 
 // doJSON sends an authenticated JSON request to the registered-user API.

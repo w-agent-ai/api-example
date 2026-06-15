@@ -1,0 +1,2171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>W-Agent Browser Client</title>
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #667085;
+      --line: #d7dde5;
+      --bg: #f3f7f2;
+      --card: #ffffff;
+      --accent: #1f7a4d;
+      --accent-dark: #145536;
+      --danger: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", sans-serif;
+      color: var(--ink);
+      background: #fff;
+      min-height: 100vh;
+    }
+    main {
+      width: calc(100vw - 10px);
+      margin: 0;
+      padding: 24px 5px 0;
+    }
+    .topbar {
+      margin-bottom: 22px;
+      text-align: center;
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 20px;
+      align-items: stretch;
+      margin-bottom: 20px;
+    }
+    .panel {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      padding: 0;
+    }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    p { color: var(--muted); line-height: 1.75; margin: 0; }
+    .badge {
+      display: inline-flex;
+      padding: 6px 10px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(31, 122, 77, 0.25);
+      color: var(--accent-dark);
+      background: rgba(31, 122, 77, 0.08);
+      font-weight: 760;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .form { display: grid; gap: 14px; }
+    .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    label {
+      display: grid;
+      gap: 7px;
+      color: var(--ink);
+      font-weight: 720;
+      font-size: 13px;
+    }
+    input, textarea, button, select { font: inherit; }
+    input[type="text"], input[type="url"], input[type="password"], input[type="file"], textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 11px 12px;
+      color: var(--ink);
+    }
+    textarea { min-height: 58px; resize: vertical; }
+    button {
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: 12px 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-dark); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .status {
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .status.error { color: var(--danger); }
+    .runtime-info {
+      min-height: 22px;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.6;
+    }
+    .required { color: var(--danger); margin-left: 3px; }
+    .field-head {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .link-row {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      margin-top: 0;
+    }
+    .text-link {
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .text-link:hover { text-decoration: underline; }
+    .action-row {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-top: -6px;
+      font-size: 13px;
+    }
+    .action-row.show { display: flex; }
+    .action-row a {
+      color: var(--accent-dark);
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .action-row a:hover { text-decoration: underline; }
+    .workdir-row {
+      display: grid;
+      gap: 6px;
+    }
+    .workdir-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .workdir-controls button {
+      padding: 9px 12px;
+      font-size: 13px;
+    }
+    .canvas-wrap {
+      position: relative;
+      overflow: hidden;
+      height: min(46vh, 420px);
+      min-height: 280px;
+      background: #fff;
+      cursor: zoom-in;
+    }
+    .preview-panel.pose-preview-mode {
+      --pose-media-height: min(61vh, 576px);
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) minmax(360px, 0.95fr);
+      grid-template-rows: var(--pose-media-height) auto;
+      grid-template-areas:
+        "pose2d pose3d"
+        "pose2dControls pose3dControls";
+      column-gap: 14px;
+      row-gap: 6px;
+      align-items: start;
+      align-content: start;
+      align-self: start;
+    }
+    .preview-panel.pose-preview-mode h2 {
+      display: none;
+    }
+    .preview-panel.pose-preview-mode .canvas-wrap {
+      grid-area: pose2d;
+      height: var(--pose-media-height);
+      min-height: 0;
+    }
+    .preview-panel.pose-preview-mode .result-assets {
+      display: contents;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      overflow: visible;
+      max-height: none;
+      margin-top: 0;
+    }
+    .pose-card {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      min-width: 0;
+    }
+    .pose-card h3 { margin: 0 0 8px; font-size: 16px; }
+    .pose-3d-stage { grid-area: pose3d; }
+    .pose-2d-controls { grid-area: pose2dControls; }
+    .pose-3d-controls { grid-area: pose3dControls; }
+    .pose-3d-controls .pose-controls {
+      margin-top: 0;
+    }
+    .pose-2d-controls .pose-controls {
+      justify-content: center;
+      align-items: center;
+    }
+    canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      margin: 0 auto;
+      object-fit: contain;
+    }
+    .preview-panel.pose-preview-mode .canvas-wrap canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #101820;
+      color: #d6f3df;
+      padding: 16px;
+      min-height: 360px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .result-assets {
+      display: none;
+      margin-top: 14px;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      max-height: min(38vh, 360px);
+      overflow: auto;
+    }
+    .result-assets.show { display: block; }
+    .result-assets h3 { margin: 0 0 8px; font-size: 16px; }
+    .result-assets a {
+      color: var(--accent-dark);
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .result-assets a:hover { text-decoration: underline; }
+    .result-assets video {
+      display: block;
+      width: 100%;
+      max-height: 210px;
+      margin-top: 10px;
+      background: #101820;
+    }
+    .preview-panel.local-video-mode {
+      display: flex;
+      flex-direction: column;
+      align-self: start;
+    }
+    .preview-panel.local-video-mode h2,
+    .preview-panel.local-video-mode .canvas-wrap {
+      display: none;
+    }
+    .preview-panel.local-video-mode .result-assets {
+      display: block;
+      margin-top: 0;
+      max-height: none;
+      overflow: visible;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    .local-video-results {
+      display: grid;
+      gap: 12px;
+    }
+    .local-video-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+      padding: 0 0 8px;
+      border: 0;
+      background: transparent;
+    }
+    .local-video-title {
+      min-width: 0;
+    }
+    .local-video-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .local-video-actions button {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    .local-video-compare-result {
+      min-width: 180px;
+      color: var(--accent-dark);
+      font-size: 24px;
+      font-weight: 900;
+      line-height: 1.2;
+      text-align: center;
+    }
+    .local-video-grid {
+      --local-video-card-width: 112px;
+      --local-video-card-height: 168px;
+      --local-video-row-gap: 6px;
+      display: grid;
+      grid-template-columns: repeat(12, var(--local-video-card-width));
+      gap: var(--local-video-row-gap);
+      align-content: start;
+      justify-content: start;
+      min-height: calc(var(--local-video-card-height) * 4 + var(--local-video-row-gap) * 3);
+    }
+    .sequence-card {
+      position: relative;
+      border: 2px solid transparent;
+      background: #fff;
+      padding: 3px;
+      cursor: pointer;
+      min-width: 0;
+      width: var(--local-video-card-width);
+      height: var(--local-video-card-height);
+      display: flex;
+      flex-direction: column;
+    }
+    .sequence-card.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(31, 122, 77, 0.14);
+    }
+    .sequence-card.failed {
+      opacity: 0.68;
+    }
+    .sequence-thumb {
+      position: relative;
+      background: #eef2ed;
+      cursor: zoom-in;
+      height: 140px;
+      flex: 0 0 auto;
+    }
+    .sequence-card img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #eef2ed;
+    }
+    .sequence-thumb > div {
+      width: 100%;
+      height: 100%;
+    }
+    .sequence-select-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      background: rgba(16, 24, 32, 0.38);
+      box-shadow: 0 2px 8px rgba(16, 24, 32, 0.18);
+      cursor: pointer;
+      z-index: 2;
+    }
+    .sequence-card.selected .sequence-select-badge {
+      background: var(--accent);
+    }
+    .sequence-card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 4px;
+      padding: 0 4px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sequence-card-title span:last-child {
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .sequence-card-meta {
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .local-video-page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .local-video-page button {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+    .preview-panel.pose-preview-mode .pose-3d-stage video {
+      display: block;
+      width: auto;
+      max-width: 100%;
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+      margin: 0 auto;
+      object-fit: contain;
+      background: #101820;
+    }
+    .preview-panel.pose-preview-mode .pose-3d-stage {
+      height: var(--pose-media-height);
+    }
+    .preview-panel.pose-preview-mode .pose-3d-stage #poseVideoSlot {
+      height: 100%;
+    }
+    .pose-result-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .pose-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 10px;
+      margin: 10px 0 12px;
+    }
+    .pose-controls label {
+      width: 110px;
+      gap: 4px;
+    }
+    .pose-controls input {
+      border: 0;
+      padding: 8px 9px;
+      width: 100%;
+    }
+    .pose-controls button { padding: 9px 12px; }
+    .pose-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 8px 0 4px;
+      margin-bottom: 0;
+    }
+    .pose-thumb {
+      flex: 0 0 auto;
+      width: 74px;
+      border: 2px solid transparent;
+      background: #f8faf7;
+      padding: 4px;
+      cursor: pointer;
+    }
+    .pose-thumb.active { border-color: var(--accent); }
+    .pose-thumb img {
+      display: block;
+      width: 62px;
+      height: 62px;
+      object-fit: cover;
+    }
+    .pose-thumb span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      text-align: center;
+    }
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 99;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+      background: rgba(16, 24, 32, 0.82);
+      cursor: zoom-out;
+    }
+    .lightbox.show { display: flex; }
+    .lightbox canvas {
+      max-width: 96vw;
+      max-height: 92vh;
+      background: #fff;
+    }
+    .sequence-lightbox {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 92vw;
+      max-height: 92vh;
+      padding: 14px;
+      background: #fff;
+      cursor: default;
+    }
+    .lightbox.sequence-mode canvas { display: none; }
+    .lightbox.sequence-mode .sequence-lightbox { display: flex; }
+    .sequence-lightbox img {
+      display: block;
+      max-width: 86vw;
+      max-height: 76vh;
+      object-fit: contain;
+      background: #eef2ed;
+    }
+    .sequence-lightbox-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--ink);
+      font-size: 13px;
+    }
+    .sequence-lightbox-controls button {
+      padding: 7px 12px;
+      font-size: 13px;
+    }
+    .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .hint:empty { display: none; }
+    .json-panel {
+      margin-top: 18px;
+      border-top: 0;
+      padding-top: 0;
+    }
+    .json-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .json-head h2 { margin: 0; }
+    .json-copy-hint {
+      flex: 1;
+      min-width: 0;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 800;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .copy-button {
+      padding: 7px 10px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .json-panel pre {
+      max-height: 280px;
+      min-height: 180px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 14px;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    @media (max-width: 900px) {
+      .workspace, .grid2 { grid-template-columns: 1fr; }
+      .local-video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .preview-panel.pose-preview-mode {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        grid-template-areas:
+          "pose2d"
+          "pose3d"
+          "pose2dControls"
+          "pose3dControls";
+      }
+      .pose-result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <h1>W-Agent 浏览器客户端</h1>
+    </header>
+
+    <section class="workspace">
+      <div class="panel">
+        <div class="form">
+          <div class="grid2">
+            <label>
+              <select id="identity">
+                <option value="trial">免注册试用</option>
+                <option value="registered">注册用户 API Key</option>
+              </select>
+            </label>
+            <label id="apiKeyRow"><span class="field-head">API Key<span class="required">*</span></span>
+              <input id="apiKey" type="password" placeholder="gak_...">
+              <span id="apiKeyHelp" class="link-row">
+                <a class="text-link" href="#" id="apiKeyLink">获取 API Key</a>
+              </span>
+            </label>
+            <label>
+              <select id="capability">
+                <option value="locate">图搜万物</option>
+                <option value="sequence">序列解析</option>
+                <option value="gaitPose">人体关节点</option>
+                <option value="localVideo">本地视频转序列</option>
+              </select>
+            </label>
+          </div>
+          <label id="promptRow">文字需求
+            <textarea id="prompt" rows="2" placeholder="例如：找出图中的人、红色车辆、门口的箱子">person</textarea>
+          </label>
+          <label><span id="fileLabel"></span>
+            <input id="files" type="file" accept="image/*" multiple>
+          </label>
+          <div class="hint" id="hint">图搜万物请选择一张图片；序列解析和人体关节点请选择按文件名排序的多张序列图片；本地视频转序列会在浏览器内完成解码、检测、跟踪和裁剪，然后上传序列图片。</div>
+          <div class="workdir-row">
+            <div class="workdir-controls">
+              <button id="chooseWorkdirButton" type="button">选择结果保存目录</button>
+              <span id="workdirLabel" class="hint">未选择，结果不会自动保存。</span>
+            </div>
+          </div>
+          <button id="runButton" type="button">开始调用</button>
+          <div id="status" class="status">等待选择输入。</div>
+          <div id="runtimeInfo" class="runtime-info"></div>
+          <div id="actionRow" class="action-row"></div>
+        </div>
+        <div class="json-panel">
+          <div class="json-head">
+            <h2>JSON 结果</h2>
+            <span id="copyJSONHint" class="json-copy-hint"></span>
+            <button id="copyJSONButton" class="copy-button" type="button">复制</button>
+          </div>
+          <pre id="raw">{}</pre>
+        </div>
+      </div>
+
+      <div class="panel preview-panel" id="previewPanel">
+        <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
+        <div id="resultAssets" class="result-assets"></div>
+      </div>
+    </section>
+  </main>
+  <div id="lightbox" class="lightbox">
+    <canvas id="lightboxCanvas"></canvas>
+    <div id="sequenceLightbox" class="sequence-lightbox">
+      <img id="sequenceLightboxImage" alt="sequence frame">
+      <div class="sequence-lightbox-controls">
+        <button id="sequenceLightboxPrev" type="button">上一张</button>
+        <span id="sequenceLightboxLabel">-</span>
+        <button id="sequenceLightboxNext" type="button">下一张</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="persondet_wasm.js"></script>
+  <script src="persondet_weights.js"></script>
+  <script src="persondet.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let loadedImage = null;
+    let poseViewerState = null;
+    let localVideoViewState = { localVideo: null, page: 0, selected: [] };
+    let localVideoFrameStore = new Map();
+    let sequenceLightboxState = null;
+    let workdirHandle = null;
+
+    function setStatus(message, isError = false) {
+      $("status").textContent = message;
+      $("status").className = isError ? "status error" : "status";
+    }
+
+    function setRuntimeInfo(message) {
+      $("runtimeInfo").textContent = message || "";
+    }
+
+    function safePathPart(value) {
+      return String(value || "result")
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, "_")
+        .replace(/\s+/g, "_")
+        .slice(0, 80) || "result";
+    }
+
+    function timestampPart() {
+      return new Date().toISOString().replace(/[:.]/g, "-");
+    }
+
+    function capabilityName(value) {
+      return {
+        locate: "object_search",
+        sequence: "sequence",
+        gaitPose: "gait_pose",
+        localVideo: "local_video",
+      }[value] || "result";
+    }
+
+    async function chooseWorkdir() {
+      if (!window.showDirectoryPicker) {
+        setStatus("当前浏览器不支持选择结果保存目录，请使用最新版 Chrome 或 Edge。", true);
+        return;
+      }
+      workdirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+      $("workdirLabel").textContent = `已选择：${workdirHandle.name}`;
+      setStatus("结果保存目录已选择。");
+    }
+
+    async function writeTextFile(dirHandle, filename, text) {
+      const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(text);
+      await writable.close();
+    }
+
+    function base64ToBlob(base64, mime = "image/jpeg") {
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      return new Blob([bytes], { type: mime });
+    }
+
+    async function writeBlobFile(dirHandle, filename, blob) {
+      const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    }
+
+    async function saveResultToWorkdir(capability, data) {
+      if (!workdirHandle) return "";
+      const dirname = `w-agent-${capabilityName(capability)}-${timestampPart()}`;
+      const dir = await workdirHandle.getDirectoryHandle(dirname, { create: true });
+      await writeTextFile(dir, "result.json", JSON.stringify(data, null, 2));
+      if (capability === "localVideo") {
+        const framesRoot = await dir.getDirectoryHandle("sequences", { create: true });
+        const results = localVideoComparableResults(data?.local_video || {});
+        for (let i = 0; i < results.length; i += 1) {
+          const item = results[i];
+          const image = localVideoPreviewBase64(item);
+          const seqName = safePathPart(`ID_${String(i + 1).padStart(4, "0")}`);
+          const sequenceDir = await framesRoot.getDirectoryHandle(seqName, { create: true });
+          await writeTextFile(sequenceDir, "result.json", JSON.stringify({
+            display_id: i + 1,
+            sequence_id: item.sequence_id || "",
+            track_id: item.track_id || "",
+            source_frames: item.source_frames || 0,
+            uploaded_frames: item.uploaded_frames || 0,
+            result: item.result || null,
+          }, null, 2));
+          if (image) {
+            await writeBlobFile(sequenceDir, "preview.jpg", base64ToBlob(image));
+          }
+          const frames = localVideoFramesForItem(item);
+          if (!frames.length) continue;
+          const frameDir = await sequenceDir.getDirectoryHandle("frames", { create: true });
+          for (let j = 0; j < frames.length; j += 1) {
+            const base64 = frames[j].content_base64;
+            if (!base64) continue;
+            const frameID = String(frames[j].frame_id || j + 1).padStart(6, "0");
+            await writeBlobFile(frameDir, `${frameID}.jpg`, base64ToBlob(base64));
+          }
+        }
+      }
+      return dirname;
+    }
+
+    function clearAction() {
+      $("actionRow").className = "action-row";
+      $("actionRow").innerHTML = "";
+    }
+
+    function clearResultAssets() {
+      $("resultAssets").className = "result-assets";
+      $("resultAssets").innerHTML = "";
+      $("previewPanel").classList.remove("pose-preview-mode");
+      $("previewPanel").classList.remove("local-video-mode");
+      poseViewerState = null;
+      localVideoViewState = { localVideo: null, page: 0, selected: [] };
+      localVideoFrameStore = new Map();
+    }
+
+    function showPoseVideo(url, poseInfo, filename = "w-agent-3d-pose.webm") {
+      const slot = $("poseVideoSlot");
+      if (!slot) return;
+      slot.innerHTML = `
+        <video controls src="${url}"></video>
+      `;
+    }
+
+    function baseURL() {
+      if (window.location.protocol === "http:" || window.location.protocol === "https:") {
+        return window.location.origin.replace(/\/+$/, "");
+      }
+      return "https://www.w-agent.cn";
+    }
+
+    function portalURL(anchor = "") {
+      return baseURL() + "/portal" + anchor;
+    }
+
+    function showAction(label, anchor = "") {
+      $("actionRow").className = "action-row show";
+      $("actionRow").innerHTML = `<span>下一步：</span><a href="${portalURL(anchor)}" target="_blank" rel="noopener">${label}</a>`;
+    }
+
+    function openAPIKeyPage(event) {
+      if (event) event.preventDefault();
+      window.open(portalURL("#apiKeySection"), "_blank", "noopener");
+    }
+
+    function browserFingerprint() {
+      const parts = [
+        navigator.userAgent || "",
+        navigator.language || "",
+        screen.width + "x" + screen.height,
+        String(new Date().getTimezoneOffset()),
+        navigator.hardwareConcurrency || "",
+      ];
+      return btoa(unescape(encodeURIComponent(parts.join("|")))).slice(0, 96);
+    }
+
+    function readFileAsDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error || new Error("read file failed"));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function dataURLBase64(dataURL) {
+      return String(dataURL || "").split(",")[1] || "";
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("image load failed"));
+        image.src = src;
+      });
+    }
+
+    function sortedFiles() {
+      return Array.from($("files").files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    }
+
+    async function loadFrames(files) {
+      const frames = [];
+      for (let i = 0; i < files.length; i += 1) {
+        const dataURL = await readFileAsDataURL(files[i]);
+        frames.push({ index: i, content_base64: dataURLBase64(dataURL) });
+      }
+      return frames;
+    }
+
+    function draw(image, boxes = []) {
+      const canvas = $("canvas");
+      const ctx = canvas.getContext("2d");
+      const width = image.naturalWidth || image.videoWidth || image.width;
+      const height = image.naturalHeight || image.videoHeight || image.height;
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(image, 0, 0);
+      ctx.lineWidth = Math.max(2, Math.round(width / 360));
+      ctx.font = Math.max(14, Math.round(width / 50)) + "px sans-serif";
+      boxes.forEach((box, index) => {
+        const x1 = Number(box.x1 ?? box.left ?? box[0] ?? 0);
+        const y1 = Number(box.y1 ?? box.top ?? box[1] ?? 0);
+        const x2 = Number(box.x2 ?? box.right ?? box[2] ?? (x1 + Number(box.width ?? 0)));
+        const y2 = Number(box.y2 ?? box.bottom ?? box[3] ?? (y1 + Number(box.height ?? 0)));
+        const label = String(box.label || box.name || ("box " + (index + 1)));
+        ctx.strokeStyle = "#ff3b30";
+        ctx.fillStyle = "#ff3b30";
+        ctx.strokeRect(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1));
+        ctx.fillText(label, x1, Math.max(18, y1 - 6));
+      });
+    }
+
+    function extractBoxes(data) {
+      if (Array.isArray(data.boxes)) return data.boxes;
+      const frames = data.sequence?.frames || data.result?.frames || [];
+      return frames.map((frame) => {
+        const rect = frame.rect || {};
+        return {
+          x1: rect.x || 0,
+          y1: rect.y || 0,
+          x2: (rect.x || 0) + (rect.width || 0),
+          y2: (rect.y || 0) + (rect.height || 0),
+          label: "frame " + (frame.frame_id ?? ""),
+        };
+      }).filter((box) => box.x2 > box.x1 || box.y2 > box.y1);
+    }
+
+    function compactFeature(value, max = 6) {
+      const items = Array.isArray(value) ? value : [];
+      if (!items.length) return "无";
+      return items.slice(0, max).map((item) => Number(item).toFixed(4)).join(", ") + (items.length > max ? " ..." : "");
+    }
+
+    function sequenceResultPayload(data) {
+      return sequenceResultPayloads(data)[0] || {};
+    }
+
+    function sequenceResultPayloads(data) {
+      if (Array.isArray(data?.sequences)) return data.sequences;
+      if (Array.isArray(data?.result?.sequences)) return data.result.sequences;
+      const single = data?.sequence || data?.result?.sequence || data?.result;
+      return single ? [single] : [];
+    }
+
+    function drawSequenceSummary(data) {
+      const seq = sequenceResultPayload(data);
+      const canvas = $("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = 980;
+      canvas.height = 620;
+      ctx.fillStyle = "#f8faf7";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#17212b";
+      ctx.font = "800 32px sans-serif";
+      ctx.fillText("序列解析结果", 44, 62);
+      const rows = [
+        ["Sequence ID", seq.sequence_id || data?.task_id || "-"],
+        ["Split Count", sequenceResultPayloads(data).length || 1],
+        ["Frame Count", seq.frame_count ?? (seq.frames || []).length ?? "-"],
+        ["Gait Feature", `${(seq.gait_feature || []).length} 维：${compactFeature(seq.gait_feature)}`],
+        ["Face Feature", `${(seq.face_feature || []).length} 维：${compactFeature(seq.face_feature)}`],
+        ["ReID Feature", `${(seq.reid_feature || []).length} 维：${compactFeature(seq.reid_feature)}`],
+        ["ReID Summary", seq.reid_summary || "-"],
+        ["Pose2D Frames", (seq.pose_2ds || []).length],
+        ["Pose3D Frames", (seq.pose_3ds || []).length],
+        ["Emotions", Array.isArray(seq.emotions) ? seq.emotions.join(", ") : "-"],
+      ];
+      ctx.font = "15px sans-serif";
+      rows.forEach((row, index) => {
+        const y = 112 + index * 48;
+        ctx.fillStyle = "#667085";
+        ctx.fillText(row[0], 44, y);
+        ctx.fillStyle = "#17212b";
+        ctx.fillText(String(row[1]), 210, y);
+      });
+      const attrs = seq.reid_attributes || [];
+      ctx.fillStyle = "#17212b";
+      ctx.font = "800 20px sans-serif";
+      ctx.fillText("结构化属性", 44, 560);
+      ctx.fillStyle = "#667085";
+      ctx.font = "14px sans-serif";
+      ctx.fillText(attrs.slice(0, 6).map((item) => `${item.category || item.name || ""}:${item.label || item.value || ""}`).join(" / ") || "无", 44, 590);
+    }
+
+    const DEFAULT_POSE_2D_PAIRS_TEXT = "0-1,0-2,1-3,2-4,5-7,7-9,6-8,8-10,5-6,5-11,6-12,11-13,13-15,12-14,14-16";
+    const DEFAULT_POSE_3D_PAIRS_TEXT = "0-1,1-2,2-3,0-4,4-5,5-6,0-7,7-8,8-9,8-11,8-14,9-10,11-12,12-13,14-15,15-16";
+    let pose2DPairs = parsePosePairs(DEFAULT_POSE_2D_PAIRS_TEXT);
+    let pose3DPairs = parsePosePairs(DEFAULT_POSE_3D_PAIRS_TEXT);
+
+    function parsePosePairs(text) {
+      return String(text || "")
+        .split(/[,\n;\s]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => item.split("-").map((part) => Number(part.trim())))
+        .filter((pair) => pair.length === 2 && pair.every((value) => Number.isInteger(value) && value >= 0 && value < 17));
+    }
+
+    function posePoints2D(frame) {
+      const points = [];
+      for (let i = 0; i + 2 < (frame || []).length; i += 3) {
+        points.push({ x: Number(frame[i]), y: Number(frame[i + 1]), score: Number(frame[i + 2]) });
+      }
+      return points;
+    }
+
+    function posePointRange(points) {
+      const valid = points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+      if (!valid.length) return "无有效 2D 点";
+      const maxX = Math.max(...valid.map((point) => point.x));
+      const maxY = Math.max(...valid.map((point) => point.y));
+      const minX = Math.min(...valid.map((point) => point.x));
+      const minY = Math.min(...valid.map((point) => point.y));
+      return `2D 点范围 x=${minX.toFixed(1)}..${maxX.toFixed(1)}, y=${minY.toFixed(1)}..${maxY.toFixed(1)}`;
+    }
+
+    function posePointToCanvas(point, width, height) {
+      return {
+        x: width / 2 + point.x,
+        y: height / 2 + point.y,
+        score: point.score,
+      };
+    }
+
+    function drawPose2DFrame(image, data, frameIndex) {
+      const pose = data?.result?.pose_2ds || data?.pose_2ds || [];
+      const index = Math.min(Math.max(0, frameIndex || 0), Math.max(0, pose.length - 1));
+      draw(image, []);
+      const canvas = $("canvas");
+      const ctx = canvas.getContext("2d");
+      const points = posePoints2D(pose[index] || []);
+      const canvasPoints = points.map((point) => posePointToCanvas(point, canvas.width, canvas.height));
+      const range = posePointRange(points);
+      ctx.lineWidth = Math.max(2, Math.round(canvas.width / 380));
+      pose2DPairs.forEach(([a, b]) => {
+        const p1 = canvasPoints[a];
+        const p2 = canvasPoints[b];
+        if (!p1 || !p2 || p1.score <= 0.05 || p2.score <= 0.05) return;
+        ctx.strokeStyle = "#1f7a4d";
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      });
+      canvasPoints.forEach((point) => {
+        if (point.score <= 0.05) return;
+        ctx.fillStyle = "#ff3b30";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, Math.max(3, canvas.width / 180), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#101820";
+        ctx.font = Math.max(12, Math.round(canvas.width / 90)) + "px sans-serif";
+        ctx.fillText(String(canvasPoints.indexOf(point)), point.x + 6, point.y - 6);
+      });
+      ctx.fillStyle = "rgba(16, 24, 32, 0.72)";
+      ctx.fillRect(12, 12, Math.min(canvas.width - 24, 560), 58);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = Math.max(13, Math.round(canvas.width / 70)) + "px sans-serif";
+      ctx.fillText(`2D 关节点：第 ${index + 1} / ${pose.length} 帧，${points.length} 点`, 28, 36);
+      ctx.fillText(`${range}，原点=图像中心，图像 ${canvas.width}x${canvas.height}`, 28, 58);
+    }
+
+    async function loadPoseImages(files) {
+      const images = [];
+      for (const file of files) {
+        images.push(await loadImage(await readFileAsDataURL(file)));
+      }
+      return images;
+    }
+
+    function renderPoseFrame(index) {
+      if (!poseViewerState) return;
+      const max = Math.min(poseViewerState.images.length, poseViewerState.pose2Ds.length) - 1;
+      poseViewerState.index = Math.min(Math.max(0, index), Math.max(0, max));
+      drawPose2DFrame(poseViewerState.images[poseViewerState.index], poseViewerState.data, poseViewerState.index);
+      const label = $("poseFrameLabel");
+      if (label) label.textContent = `第 ${poseViewerState.index + 1} / ${max + 1} 帧`;
+      document.querySelectorAll(".pose-thumb").forEach((button) => {
+        button.classList.toggle("active", Number(button.dataset.index) === poseViewerState.index);
+      });
+    }
+
+    function showPoseLightbox() {
+      if (!poseViewerState) return;
+      const image = poseViewerState.images[poseViewerState.index];
+      if (!image) return;
+      const sourceCanvas = $("canvas");
+      const targetCanvas = $("lightboxCanvas");
+      targetCanvas.width = sourceCanvas.width;
+      targetCanvas.height = sourceCanvas.height;
+      targetCanvas.getContext("2d").drawImage(sourceCanvas, 0, 0);
+      $("lightbox").className = "lightbox show";
+    }
+
+    function closeLightbox() {
+      $("lightbox").className = "lightbox";
+      sequenceLightboxState = null;
+    }
+
+    function renderSequenceLightboxFrame(index) {
+      if (!sequenceLightboxState || !sequenceLightboxState.frames.length) return;
+      const max = sequenceLightboxState.frames.length - 1;
+      sequenceLightboxState.index = Math.min(Math.max(0, index), max);
+      const frame = sequenceLightboxState.frames[sequenceLightboxState.index] || {};
+      $("sequenceLightboxImage").src = "data:image/jpeg;base64," + (frame.content_base64 || "");
+      $("sequenceLightboxLabel").textContent = `第 ${sequenceLightboxState.index + 1} / ${max + 1} 张`;
+      $("sequenceLightboxPrev").disabled = sequenceLightboxState.index <= 0;
+      $("sequenceLightboxNext").disabled = sequenceLightboxState.index >= max;
+    }
+
+    function showLocalVideoSequenceFrames(sequenceID) {
+      const key = sequenceKey(sequenceID);
+      if (!key) return;
+      const item = localVideoResultByID(key);
+      const frames = localVideoFramesForItem(item);
+      const validFrames = frames.filter((frame) => frame && frame.content_base64);
+      if (!validFrames.length) {
+        setStatus(`该序列没有可预览的多帧图片：${key}。请确认使用的是重新下载后的浏览器客户端。`, true);
+        return;
+      }
+      sequenceLightboxState = { sequenceID: key, frames: validFrames, index: 0 };
+      $("lightbox").className = "lightbox show sequence-mode";
+      renderSequenceLightboxFrame(0);
+    }
+
+    async function copyJSONResult() {
+      const text = $("raw").textContent || "{}";
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.style.position = "fixed";
+          textarea.style.left = "-9999px";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          textarea.remove();
+        }
+        const hint = $("copyJSONHint");
+        if (hint) {
+          hint.textContent = "JSON 结果已复制。";
+          window.clearTimeout(copyJSONResult._timer);
+          copyJSONResult._timer = window.setTimeout(() => {
+            if ($("copyJSONHint")) $("copyJSONHint").textContent = "";
+          }, 1500);
+        }
+      } catch (error) {
+        setStatus("复制失败，请手动选中 JSON 内容复制。", true);
+      }
+    }
+
+    async function setupPoseViewer(files, data) {
+      const pose2Ds = data?.result?.pose_2ds || data?.pose_2ds || [];
+      const images = await loadPoseImages(files);
+      poseViewerState = { files, data, images, pose2Ds, index: 0, videoURL: "" };
+      $("previewPanel").classList.add("pose-preview-mode");
+      renderPoseFrame(0);
+      $("resultAssets").className = "result-assets show";
+      $("resultAssets").innerHTML = `
+        <div class="pose-card pose-3d-stage">
+          <div id="poseVideoSlot"><p class="hint">正在生成 3D 视频...</p></div>
+        </div>
+        <div class="pose-card pose-2d-controls">
+          <h3>2D 帧控制</h3>
+          <div class="pose-controls">
+            <button id="posePrevButton" type="button">上一张</button>
+            <button id="poseNextButton" type="button">下一张</button>
+            <span id="poseFrameLabel" class="hint">第 1 / ${Math.min(images.length, pose2Ds.length)} 帧</span>
+          </div>
+          <div id="poseThumbStrip" class="pose-strip"></div>
+          <p class="hint">上方左侧为 2D 图片，点击图片可放大查看。</p>
+        </div>
+        <div class="pose-card pose-3d-controls">
+          <h3>3D 控制</h3>
+          <div class="pose-controls">
+            <label>帧率 FPS<input id="poseFpsInput" type="number" min="1" max="60" value="25"></label>
+            <label>水平视角<input id="poseYawInput" type="number" min="-180" max="180" value="-30"></label>
+            <label>俯仰角<input id="posePitchInput" type="number" min="-80" max="80" value="15"></label>
+            <button id="poseRenderButton" type="button">重新生成 3D 视频</button>
+          </div>
+        </div>
+      `;
+      const strip = $("poseThumbStrip");
+      images.forEach((image, index) => {
+        if (index >= pose2Ds.length) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pose-thumb" + (index === 0 ? " active" : "");
+        button.dataset.index = String(index);
+        button.innerHTML = `<img alt="frame ${index + 1}"><span>${index + 1}</span>`;
+        button.querySelector("img").src = image.src;
+        button.addEventListener("click", () => renderPoseFrame(index));
+        strip.appendChild(button);
+      });
+      $("posePrevButton").addEventListener("click", () => renderPoseFrame((poseViewerState?.index || 0) - 1));
+      $("poseNextButton").addEventListener("click", () => renderPoseFrame((poseViewerState?.index || 0) + 1));
+      $("poseRenderButton").addEventListener("click", () => regeneratePose3DVideo());
+    }
+
+    function pose3DFrames(data) {
+      const pose3Ds = data?.result?.pose_3ds || data?.pose_3ds || [];
+      return pose3Ds.map((frame) => {
+        const points = [];
+        for (let i = 0; i + 2 < (frame || []).length; i += 3) {
+          points.push({ x: Number(frame[i]), y: Number(frame[i + 1]), z: Number(frame[i + 2]) });
+        }
+        return points;
+      }).filter((frame) => frame.length >= 17);
+    }
+
+    function pose3DBounds(frames) {
+      const bounds = { minX: Infinity, minY: Infinity, minZ: Infinity, maxX: -Infinity, maxY: -Infinity, maxZ: -Infinity };
+      frames.forEach((frame) => frame.forEach((point) => {
+        if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(point.z)) return;
+        bounds.minX = Math.min(bounds.minX, point.x);
+        bounds.minY = Math.min(bounds.minY, point.y);
+        bounds.minZ = Math.min(bounds.minZ, point.z);
+        bounds.maxX = Math.max(bounds.maxX, point.x);
+        bounds.maxY = Math.max(bounds.maxY, point.y);
+        bounds.maxZ = Math.max(bounds.maxZ, point.z);
+      }));
+      if (!Number.isFinite(bounds.minX)) return null;
+      return bounds;
+    }
+
+    function projectPose3D(point, view, width, height) {
+      const x = point.x - view.cx;
+      const y = point.y - view.cy;
+      const z = point.z - view.cz;
+      const yaw = view.yaw;
+      const pitch = view.pitch;
+      const cosy = Math.cos(yaw);
+      const siny = Math.sin(yaw);
+      const cosp = Math.cos(pitch);
+      const sinp = Math.sin(pitch);
+      const rx = x * cosy - z * siny;
+      const rz = x * siny + z * cosy;
+      const ry = y * cosp - rz * sinp;
+      const rz2 = y * sinp + rz * cosp;
+      const depth = Math.max(0.2, view.distance + rz2);
+      const perspective = view.distance / depth;
+      const scaleX = Number.isFinite(view.scaleX) ? view.scaleX : view.scale;
+      const scaleY = Number.isFinite(view.scaleY) ? view.scaleY : view.scale;
+      return {
+        x: width / 2 + (view.offsetX || 0) + rx * scaleX * perspective,
+        y: height / 2 + (view.offsetY || 0) + ry * scaleY * perspective,
+      };
+    }
+
+    function pose3DProjectedBounds(frames, view, width, height) {
+      const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+      frames.forEach((frame) => frame.forEach((point) => {
+        const projected = projectPose3D(point, view, width, height);
+        if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y)) return;
+        bounds.minX = Math.min(bounds.minX, projected.x);
+        bounds.minY = Math.min(bounds.minY, projected.y);
+        bounds.maxX = Math.max(bounds.maxX, projected.x);
+        bounds.maxY = Math.max(bounds.maxY, projected.y);
+      }));
+      if (!Number.isFinite(bounds.minX)) return null;
+      return bounds;
+    }
+
+    function drawPose3DFrame(ctx, frame, view, width, height, index, total) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "#edf1f5";
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= width; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= height; y += 80) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+      const points = frame.map((point) => projectPose3D(point, view, width, height));
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 5;
+      pose3DPairs.forEach(([a, b]) => {
+        const p1 = points[a];
+        const p2 = points[b];
+        if (!p1 || !p2) return;
+        ctx.strokeStyle = "#1f7a4d";
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      });
+      points.forEach((point, pointIndex) => {
+        ctx.fillStyle = "#ff3b30";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = "#667085";
+      ctx.font = "16px sans-serif";
+      ctx.fillText(`${index + 1} / ${total}`, 16, 26);
+    }
+
+    function numberFromInput(id, fallback, min, max) {
+      const value = Number($(id)?.value);
+      if (!Number.isFinite(value)) return fallback;
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function pose3DRenderOptions() {
+      return {
+        fps: numberFromInput("poseFpsInput", 25, 1, 60),
+        yawDeg: numberFromInput("poseYawInput", -30, -180, 180),
+        pitchDeg: numberFromInput("posePitchInput", 15, -80, 80),
+      };
+    }
+
+    function pose3DCanvasSize() {
+      const source = $("canvas");
+      const sourceHeight = Math.max(420, Number(source?.height || 0));
+      const height = Math.min(720, sourceHeight);
+      const width = Math.max(280, Math.round(height * 0.62));
+      return { width, height };
+    }
+
+    async function renderPose3DVideoInBrowser(data, options = {}) {
+      const frames = pose3DFrames(data);
+      if (!frames.length) return null;
+      if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+        throw new Error("当前浏览器不支持本地视频录制，请使用最新版 Chrome、Edge 或 Firefox。");
+      }
+      const bounds = pose3DBounds(frames);
+      if (!bounds) return null;
+      const { width, height } = pose3DCanvasSize();
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      const maxAbs = Math.max(
+        Math.abs(bounds.minX), Math.abs(bounds.maxX),
+        Math.abs(bounds.minY), Math.abs(bounds.maxY),
+        Math.abs(bounds.minZ), Math.abs(bounds.maxZ),
+      );
+      const normalizedRange = maxAbs <= 1.5;
+      const spanX = bounds.maxX - bounds.minX;
+      const spanY = bounds.maxY - bounds.minY;
+      const spanZ = bounds.maxZ - bounds.minZ;
+      const size = Math.max(spanX, spanY, spanZ, normalizedRange ? 0.75 : 1);
+      const view = {
+        cx: (bounds.minX + bounds.maxX) / 2,
+        cy: (bounds.minY + bounds.maxY) / 2,
+        cz: (bounds.minZ + bounds.maxZ) / 2,
+        scale: 1,
+        scaleX: 1,
+        scaleY: 1,
+        offsetX: 0,
+        offsetY: 0,
+        distance: normalizedRange ? 3.2 : Math.max(size * 2.5, 2),
+        yaw: (Number(options.yawDeg ?? -30) * Math.PI) / 180,
+        pitch: (Number(options.pitchDeg ?? 15) * Math.PI) / 180,
+      };
+      const projectedAtUnitScale = pose3DProjectedBounds(frames, view, width, height);
+      if (projectedAtUnitScale) {
+        const spanWidth = Math.max(1, projectedAtUnitScale.maxX - projectedAtUnitScale.minX);
+        const spanHeight = Math.max(1, projectedAtUnitScale.maxY - projectedAtUnitScale.minY);
+        const marginX = width * 0.04;
+        const marginY = height * 0.04;
+        view.scaleX = (width - marginX * 2) / spanWidth;
+        view.scaleY = (height - marginY * 2) / spanHeight;
+        view.scale = Math.min(view.scaleX, view.scaleY);
+        const projected = pose3DProjectedBounds(frames, view, width, height);
+        if (projected) {
+          view.offsetX = width / 2 - (projected.minX + projected.maxX) / 2;
+          view.offsetY = height / 2 - (projected.minY + projected.maxY) / 2;
+        }
+      } else {
+        view.scale = Math.min(width, height) * (normalizedRange ? 0.82 : 0.55) / size;
+      }
+      const fps = Math.min(60, Math.max(1, Number(options.fps || 25)));
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
+      const chunks = [];
+      const recorder = new MediaRecorder(canvas.captureStream(fps), { mimeType });
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      };
+      const stopped = new Promise((resolve) => {
+        recorder.onstop = resolve;
+      });
+      recorder.start();
+      for (let i = 0; i < frames.length; i += 1) {
+        drawPose3DFrame(ctx, frames[i], view, width, height, i, frames.length);
+        await new Promise((resolve) => setTimeout(resolve, 1000 / fps));
+      }
+      recorder.stop();
+      await stopped;
+      const blob = new Blob(chunks, { type: "video/webm" });
+      return {
+        url: URL.createObjectURL(blob),
+        frames: frames.length,
+        size: blob.size,
+        mime_type: blob.type,
+        fps,
+        width,
+        height,
+        yaw_deg: Number(options.yawDeg ?? -30),
+        pitch_deg: Number(options.pitchDeg ?? 15),
+      };
+    }
+
+    async function regeneratePose3DVideo() {
+      if (!poseViewerState) return;
+      const button = $("poseRenderButton");
+      const slot = $("poseVideoSlot");
+      if (button) button.disabled = true;
+      if (slot) slot.innerHTML = `<p class="hint">正在按当前参数生成 3D 视频...</p>`;
+      try {
+        const rendered = await renderPose3DVideoInBrowser(poseViewerState.data, pose3DRenderOptions());
+        if (poseViewerState.videoURL) URL.revokeObjectURL(poseViewerState.videoURL);
+        poseViewerState.videoURL = rendered?.url || "";
+        if (rendered?.url) {
+          showPoseVideo(rendered.url, `3D ${rendered.frames} 帧 / ${rendered.fps} FPS / ${rendered.width}x${rendered.height} / 水平 ${rendered.yaw_deg}° / 俯仰 ${rendered.pitch_deg}°，本地生成 WebM，大小 ${(rendered.size / 1024).toFixed(1)} KB。`);
+        } else if (slot) {
+          slot.innerHTML = `<p class="hint">接口返回中没有可渲染的 3D 关节点。</p>`;
+        }
+      } catch (error) {
+        if (slot) slot.innerHTML = `<p class="hint">${error.message || "浏览器本地生成 3D 视频失败。"}</p>`;
+      } finally {
+        if (button) button.disabled = false;
+      }
+    }
+
+    function drawLocalVideoSummary(localVideo) {
+      const canvas = $("canvas");
+      const ctx = canvas.getContext("2d");
+      const results = localVideo.results || [];
+      const successCount = results.filter((item) => item && item.status !== "failed").length;
+      const failedCount = results.filter((item) => item && item.status === "failed").length;
+      const thumbs = results.map((item) => localVideoPreviewBase64(item)).filter(Boolean);
+      const width = 980;
+      const height = Math.max(620, 300 + Math.ceil(Math.max(thumbs.length, 1) / 4) * 190);
+      canvas.width = width;
+      canvas.height = height;
+      ctx.fillStyle = "#f8faf7";
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = "#17212b";
+      ctx.font = "800 34px sans-serif";
+      ctx.fillText("本地视频解析结果", 48, 68);
+      ctx.font = "16px sans-serif";
+      ctx.fillStyle = "#667085";
+      ctx.fillText("浏览器完成本地检测、跟踪、裁剪后，已并行调用序列 API。", 48, 100);
+
+      const items = [
+        ["有效序列", localVideo.uploaded_sequences ?? 0],
+        ["上传帧数", localVideo.uploaded_frames ?? 0],
+        ["解析成功", successCount],
+        ["解析失败", failedCount],
+        ["相似度对", (localVideo.similarity_pairs || []).length],
+      ];
+      items.forEach((item, index) => {
+        const x = 48 + (index % 5) * 178;
+        const y = 150 + Math.floor(index / 5) * 104;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#d7dde5";
+        ctx.lineWidth = 1;
+        ctx.fillRect(x, y, 170, 92);
+        ctx.strokeRect(x, y, 170, 92);
+        ctx.fillStyle = "#667085";
+        ctx.font = "14px sans-serif";
+        ctx.fillText(item[0], x + 18, y + 30);
+        ctx.fillStyle = "#1f7a4d";
+        ctx.font = "800 30px sans-serif";
+        ctx.fillText(String(item[1]), x + 18, y + 68);
+      });
+
+      const timings = localVideo.timings_ms || {};
+      const processed = Math.max(1, Number(localVideo.processed_frames || 0));
+      const avg = (key) => (Number(timings[key] || 0) / processed).toFixed(1);
+      ctx.fillStyle = "#17212b";
+      ctx.font = "800 20px sans-serif";
+      ctx.fillText("平均每帧耗时", 48, 295);
+      ctx.font = "15px sans-serif";
+      ctx.fillStyle = "#667085";
+      ctx.fillText(`解码 ${avg("seek_ms")}ms / 绘制 ${avg("draw_ms")}ms / 检测 ${avg("detect_ms")}ms / 裁剪 ${avg("crop_ms")}ms`, 48, 325);
+
+      ctx.fillStyle = "#17212b";
+      ctx.font = "800 20px sans-serif";
+      ctx.fillText("序列摘要", 48, 380);
+      ctx.font = "15px sans-serif";
+      ctx.fillStyle = "#667085";
+      const lines = results.slice(0, 8).map((item, index) => {
+        if (item.status === "failed") {
+          return `#${index + 1} sequence=${item.sequence_id} track=${item.track_id} frames=${item.uploaded_frames} 解析失败：${item.error || "unknown error"}`;
+        }
+        return `#${index + 1} sequence=${item.sequence_id} track=${item.track_id} frames=${item.uploaded_frames} 解析成功`;
+      });
+      if (!lines.length) lines.push("暂无序列结果。");
+      lines.forEach((line, index) => ctx.fillText(line, 48, 412 + index * 24));
+      if (results.length > lines.length) {
+        ctx.fillText(`还有 ${results.length - lines.length} 个序列未在摘要中展示，完整结果见 JSON。`, 48, 412 + lines.length * 24);
+      }
+      thumbs.slice(0, 32).forEach((base64, index) => {
+        const img = new Image();
+        img.onload = () => {
+          const x = 48 + (index % 4) * 225;
+          const y = 620 + Math.floor(index / 4) * 190;
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(x, y - 150, 170, 170);
+          ctx.drawImage(img, x, y - 150, 170, 150);
+          ctx.fillStyle = "#17212b";
+          ctx.font = "13px sans-serif";
+          ctx.fillText(`序列 ${index + 1}`, x, y + 12);
+        };
+        img.src = "data:image/jpeg;base64," + base64;
+      });
+    }
+
+    function localVideoComparableResults(localVideo) {
+      return (localVideo?.results || []).filter((item) => item && item.status !== "failed" && item.result);
+    }
+
+    function localVideoFramesForResult(result, fallbackFrames) {
+      const sourceFrames = Array.isArray(fallbackFrames) ? fallbackFrames : [];
+      if (!sourceFrames.length) return [];
+      const resultFrames = Array.isArray(result?.frames) ? result.frames : [];
+      const frameIDs = new Set();
+      for (const frame of resultFrames) {
+        const value = Number(frame?.frame_id);
+        if (Number.isFinite(value)) frameIDs.add(value);
+      }
+      if (!frameIDs.size) return sourceFrames;
+      const subset = sourceFrames.filter((frame) => frameIDs.has(Number(frame?.frame_id)));
+      return subset.length ? subset : sourceFrames;
+    }
+
+    function localVideoFramesForItem(item) {
+      if (!item) return [];
+      const ownFrames = localVideoFrameStore.get(sequenceKey(item.sequence_id)) || [];
+      if (ownFrames.length) return ownFrames;
+      const sourceFrames = localVideoFrameStore.get(sequenceKey(item.source_sequence_id)) || [];
+      return localVideoFramesForResult(item?.result, sourceFrames);
+    }
+
+    function localVideoPreviewBase64(item) {
+      if (!item) return "";
+      return item.preview_base64
+        || item?.result?.sequence?.gait_images?.[0]
+        || item?.result?.result?.gait_images?.[0]
+        || localVideoFramesForItem(item)[0]?.content_base64
+        || "";
+    }
+
+    function localVideoSelectedItems() {
+      const items = localVideoComparableResults(localVideoViewState.localVideo);
+      return localVideoViewState.selected
+        .map((sequenceID) => items.find((item) => sequenceKey(item.sequence_id) === sequenceID))
+        .filter(Boolean);
+    }
+
+    function renderLocalVideoResults(localVideo, page = 0) {
+      localVideoViewState.localVideo = localVideo || {};
+      const allResults = localVideoComparableResults(localVideoViewState.localVideo);
+      const successCount = allResults.length;
+      const pageSize = 48;
+      const pageCount = Math.max(1, Math.ceil(allResults.length / pageSize));
+      localVideoViewState.page = Math.min(Math.max(0, page), pageCount - 1);
+      localVideoViewState.selected = localVideoViewState.selected.filter((sequenceID) =>
+        allResults.some((item) => sequenceKey(item.sequence_id) === sequenceID)
+      ).slice(0, 2);
+      $("previewPanel").classList.add("local-video-mode");
+      $("resultAssets").className = "result-assets show";
+      const selectedItems = localVideoSelectedItems();
+      const compareDisabled = selectedItems.length !== 2 ? "disabled" : "";
+      const start = localVideoViewState.page * pageSize;
+      const pageItems = allResults.slice(start, start + pageSize);
+      $("resultAssets").innerHTML = `
+        <div class="local-video-results">
+          <div class="local-video-toolbar">
+            <div class="local-video-title">
+              <strong>本地视频序列</strong>
+              <span class="hint">共 ${successCount} 个序列；选择两个序列后比对。</span>
+            </div>
+            <span id="localVideoCompareResult" class="local-video-compare-result"></span>
+            <div class="local-video-actions">
+              <button id="localVideoCompareButton" type="button" ${compareDisabled}>比对</button>
+              <button id="localVideoClearSelectionButton" type="button">清空选择</button>
+            </div>
+          </div>
+          <div class="local-video-grid" id="localVideoGrid">
+            ${pageItems.map((item, index) => localVideoSequenceCardHTML(item, start + index)).join("")}
+          </div>
+          <div class="local-video-page">
+            <button id="localVideoPrevPage" type="button" ${localVideoViewState.page <= 0 ? "disabled" : ""}>上一页</button>
+            <span class="hint">第 ${localVideoViewState.page + 1} / ${pageCount} 页</span>
+            <button id="localVideoNextPage" type="button" ${localVideoViewState.page >= pageCount - 1 ? "disabled" : ""}>下一页</button>
+          </div>
+        </div>
+      `;
+      $("localVideoPrevPage").addEventListener("click", () => renderLocalVideoResults(localVideoViewState.localVideo, localVideoViewState.page - 1));
+      $("localVideoNextPage").addEventListener("click", () => renderLocalVideoResults(localVideoViewState.localVideo, localVideoViewState.page + 1));
+      $("localVideoClearSelectionButton").addEventListener("click", () => {
+        localVideoViewState.selected = [];
+        renderLocalVideoResults(localVideoViewState.localVideo, localVideoViewState.page);
+      });
+      $("localVideoCompareButton").addEventListener("click", compareSelectedLocalVideoSequences);
+    }
+
+    function localVideoSequenceCardHTML(item, index) {
+      const sequenceID = sequenceKey(item.sequence_id || `seq_${index + 1}`);
+      const displayID = index + 1;
+      const selected = localVideoViewState.selected.includes(sequenceID);
+      const image = localVideoPreviewBase64(item);
+      const frameCount = Number(item.uploaded_frames || item.source_frames || 0);
+      const sequenceIDArg = jsString(sequenceID);
+      return `
+        <div class="sequence-card ${selected ? "selected" : ""}" data-sequence-id="${escapeHTML(sequenceID)}">
+          <div class="sequence-thumb" data-sequence-id="${escapeHTML(sequenceID)}" onclick="showLocalVideoSequenceFrames(${escapeHTML(sequenceIDArg)})">
+            ${image ? `<img src="data:image/jpeg;base64,${image}" alt="sequence ${index + 1}">` : `<div style="aspect-ratio:1/1;background:#eef2ed;"></div>`}
+            <button class="sequence-select-badge" type="button" data-sequence-id="${escapeHTML(sequenceID)}" title="选择序列" aria-label="选择序列" onclick="event.stopPropagation(); toggleLocalVideoSequenceSelection(${escapeHTML(sequenceIDArg)})"></button>
+          </div>
+          <div class="sequence-card-title"><span>ID:${displayID}</span><span>${frameCount}帧</span></div>
+        </div>
+      `;
+    }
+
+    function localVideoResultByID(sequenceID) {
+      const key = sequenceKey(sequenceID);
+      return localVideoComparableResults(localVideoViewState.localVideo).find((item) => sequenceKey(item.sequence_id) === key);
+    }
+
+    function localVideoResultDisplayIndex(sequenceID) {
+      const key = sequenceKey(sequenceID);
+      return localVideoComparableResults(localVideoViewState.localVideo).findIndex((item) => sequenceKey(item.sequence_id) === key);
+    }
+
+    async function exportLocalVideoSequenceFrames(sequenceID) {
+      const key = sequenceKey(sequenceID);
+      const item = localVideoResultByID(key);
+      if (!item) return;
+      const frames = localVideoFramesForItem(item);
+      if (!frames.length) {
+        setStatus("该序列没有可保存的多帧图片。", true);
+        return;
+      }
+      const displayIndex = localVideoResultDisplayIndex(key);
+      const dirname = safePathPart(displayIndex >= 0 ? `ID_${String(displayIndex + 1).padStart(4, "0")}` : key);
+      if (workdirHandle) {
+        const root = await workdirHandle.getDirectoryHandle("w-agent-sequences", { create: true });
+        const dir = await root.getDirectoryHandle(dirname, { create: true });
+        await writeTextFile(dir, "result.json", JSON.stringify({
+          display_id: displayIndex >= 0 ? displayIndex + 1 : null,
+          sequence_id: item.sequence_id || "",
+          track_id: item.track_id || "",
+          source_frames: item.source_frames || 0,
+          uploaded_frames: item.uploaded_frames || 0,
+          result: item.result || null,
+        }, null, 2));
+        const preview = localVideoPreviewBase64(item);
+        if (preview) await writeBlobFile(dir, "preview.jpg", base64ToBlob(preview));
+        const frameDir = await dir.getDirectoryHandle("frames", { create: true });
+        for (let i = 0; i < frames.length; i += 1) {
+          const base64 = frames[i].content_base64;
+          if (!base64) continue;
+          const frameID = String(frames[i].frame_id || i + 1).padStart(6, "0");
+          await writeBlobFile(frameDir, `${frameID}.jpg`, base64ToBlob(base64));
+        }
+        setStatus(`序列结果已保存到结果保存目录：w-agent-sequences/${dirname}`);
+        return;
+      }
+      frames.forEach((frame, index) => {
+        if (!frame.content_base64) return;
+        const link = document.createElement("a");
+        const frameID = String(frame.frame_id || index + 1).padStart(6, "0");
+        link.href = "data:image/jpeg;base64," + frame.content_base64;
+        link.download = `${dirname}_${frameID}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      });
+      setStatus("未选择结果保存目录，已触发浏览器逐张下载序列图片。");
+    }
+
+    function toggleLocalVideoSequenceSelection(sequenceID) {
+      const key = sequenceKey(sequenceID);
+      if (!key) return;
+      const items = localVideoComparableResults(localVideoViewState.localVideo);
+      if (!items.some((item) => sequenceKey(item.sequence_id) === key)) return;
+      const existing = localVideoViewState.selected.indexOf(key);
+      if (existing >= 0) {
+        localVideoViewState.selected.splice(existing, 1);
+      } else {
+        if (localVideoViewState.selected.length >= 2) localVideoViewState.selected.shift();
+        localVideoViewState.selected.push(key);
+      }
+      renderLocalVideoResults(localVideoViewState.localVideo, localVideoViewState.page);
+    }
+
+    function compareSelectedLocalVideoSequences() {
+      const selected = localVideoSelectedItems();
+      if (selected.length !== 2) return;
+      const similarity = featureSimilarity(sequencePayload(selected[0].result), sequencePayload(selected[1].result));
+      const fused = similarity.fused_similarity || {};
+      const score = typeof fused.score === "number" ? fused.score : 0;
+      const target = $("localVideoCompareResult");
+      if (target) {
+        target.textContent = `相似度 ${score.toFixed(5)}`;
+      }
+    }
+
+    function updateForm() {
+      const identity = $("identity").value;
+      const capability = $("capability").value;
+      $("apiKeyRow").style.display = identity === "registered" ? "grid" : "none";
+      $("promptRow").style.display = capability === "locate" ? "grid" : "none";
+      $("fileLabel").textContent = "";
+      $("files").accept = capability === "localVideo" ? "video/*" : "image/*";
+      $("files").multiple = capability !== "locate" && capability !== "localVideo";
+      $("hint").textContent = capability === "locate"
+        ? "图搜万物请选择一张图片。"
+        : (capability === "localVideo"
+          ? ""
+          : "请选择同一个人从出现到消失的序列图片，浏览器按文件名排序后上传。");
+    }
+
+    function apiErrorMessage(status, data) {
+      const error = data?.error || {};
+      const code = String(error.code || "");
+      const message = String(error.message || "");
+      if (code === "trial_limit_exceeded" || status === 429) {
+        return "免注册试用次数或帧数已用完，请登录/注册后创建 API Key 继续使用。";
+      }
+      if (code === "wallet_insufficient_balance") {
+        return "账户余额不足，请进入用户中心充值或购买包月套餐。";
+      }
+      if (code === "unauthorized" || code === "api_key_not_found" || status === 401 || status === 403) {
+        return "API Key 无效、已停用或填写错误，请检查后重试，或重新获取 API Key。";
+      }
+      if (code === "trial_unavailable") {
+        return "免注册试用暂不可用，请使用注册用户 API Key。";
+      }
+      if (code === "locate_disabled") {
+        return "图搜万物服务暂未启用，请稍后再试。";
+      }
+      if (code === "invalid_request") {
+        return "请求参数不正确：" + (message || "请检查输入文件和文字需求。");
+      }
+      if (code) {
+        return `调用失败：${code}${message ? "，" + message : ""}`;
+      }
+      return message || `调用失败：HTTP ${status}`;
+    }
+
+    function makeAPIError(status, data) {
+      const error = data?.error || {};
+      const err = new Error(apiErrorMessage(status, data));
+      err.status = status;
+      err.code = String(error.code || "");
+      err.details = error.details || {};
+      return err;
+    }
+
+    function showErrorAction(error) {
+      const code = String(error?.code || "");
+      const status = Number(error?.status || 0);
+      if (code === "trial_limit_exceeded" || status === 429 || code === "trial_unavailable") {
+        showAction("登录/注册并获取 API Key", "#apiKeySection");
+        return;
+      }
+      if (code === "wallet_insufficient_balance") {
+        showAction("进入用户中心充值", "#walletSection");
+        return;
+      }
+      if (code === "unauthorized" || code === "api_key_not_found" || status === 401 || status === 403) {
+        showAction("获取或检查 API Key", "#apiKeySection");
+      }
+    }
+
+    async function requestJSON(path, body, apiKey = "") {
+      const headers = { "Content-Type": "application/json" };
+      if (apiKey) headers.Authorization = "Bearer " + apiKey;
+      const resp = await fetch(baseURL() + path, { method: "POST", headers, body: JSON.stringify(body) });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw makeAPIError(resp.status, data);
+      return data;
+    }
+
+    async function runRegisteredSequence(capability, frames, apiKey) {
+      const created = await requestJSON("/v1/sequences", { frame_count: frames.length }, apiKey);
+      const taskID = created.task_id;
+      const path = capability === "gaitPose"
+        ? `/v1/sequences/${taskID}/gait-pose`
+        : `/v1/sequences/${taskID}/parse`;
+      return requestJSON(path, { frames }, apiKey);
+    }
+
+    async function runSequenceByIdentity(capability, frames, identity, apiKey) {
+      if (identity === "trial") {
+        const path = capability === "gaitPose"
+          ? "/v1/public/sequences/trial/gait-pose"
+          : "/v1/public/sequences/trial/parse";
+        return requestJSON(path, { frames, fingerprint: browserFingerprint() });
+      }
+      return runRegisteredSequence(capability, frames, apiKey);
+    }
+
+    const SAME_PERSON_THRESHOLD = 0.7;
+
+    function numericVector(value) {
+      return Array.isArray(value) ? value.filter((item) => typeof item === "number") : [];
+    }
+
+    function dotProduct(left, right) {
+      if (!left.length || !right.length) {
+        return { score: null, left_dim: left.length, right_dim: right.length, used_dim: 0, skipped: true, reason: "empty_feature" };
+      }
+      const used = Math.min(left.length, right.length);
+      let score = 0;
+      for (let i = 0; i < used; i += 1) score += left[i] * right[i];
+      return { score, left_dim: left.length, right_dim: right.length, used_dim: used, skipped: false, dimension_mismatch: left.length !== right.length };
+    }
+
+    function scoreOrZero(item) {
+      return typeof item?.score === "number" ? item.score : 0;
+    }
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function jsString(value) {
+      return JSON.stringify(String(value ?? ""));
+    }
+
+    function sequenceKey(value) {
+      return String(value ?? "");
+    }
+
+    function fusedIdentitySimilarity(faceSim, gaitSim, reidSim) {
+      let result = Math.max(gaitSim, 0.1);
+      if (faceSim > 0.45) result = Math.max(gaitSim, 0.7);
+      else if (faceSim > 0.35) result *= 1.1;
+      else if (faceSim > 0.4) result *= 1.1;
+      else if (faceSim !== 0 && faceSim < 0.1) result *= 0.9;
+      if (reidSim > 0.8) result *= 1.1;
+      if (faceSim > 0.5) result *= 1.1;
+      if (faceSim > 0.6) result *= 1.1;
+      return Math.min(result, 1.0);
+    }
+
+    function sequencePayload(apiResult) {
+      return sequencePayloads(apiResult)[0] || {};
+    }
+
+    function sequencePayloads(apiResult) {
+      if (Array.isArray(apiResult?.sequences)) return apiResult.sequences;
+      if (Array.isArray(apiResult?.result?.sequences)) return apiResult.result.sequences;
+      const single = apiResult?.sequence || apiResult?.result?.sequence || apiResult?.result;
+      return single ? [single] : [];
+    }
+
+    function featureSimilarity(leftSequence, rightSequence) {
+      const scores = {
+        gait_feature: dotProduct(numericVector(leftSequence.gait_feature), numericVector(rightSequence.gait_feature)),
+        reid_feature: dotProduct(numericVector(leftSequence.reid_feature), numericVector(rightSequence.reid_feature)),
+        face_feature: dotProduct(numericVector(leftSequence.face_feature), numericVector(rightSequence.face_feature)),
+      };
+      const faceSim = scoreOrZero(scores.face_feature);
+      const gaitSim = scoreOrZero(scores.gait_feature);
+      const reidSim = scoreOrZero(scores.reid_feature);
+      const fused = fusedIdentitySimilarity(faceSim, gaitSim, reidSim);
+      scores.fused_similarity = {
+        score: fused,
+        threshold: SAME_PERSON_THRESHOLD,
+        same_person_likely: fused > SAME_PERSON_THRESHOLD,
+        inputs: {
+          face_similarity: faceSim,
+          gait_similarity: gaitSim,
+          reid_similarity: reidSim,
+        },
+      };
+      return scores;
+    }
+
+    function localVideoSimilarityPairs(results) {
+      const parsed = results.filter((item) => item && item.status !== "failed" && item.result);
+      const pairs = [];
+      for (let i = 0; i < parsed.length; i += 1) {
+        for (let j = i + 1; j < parsed.length; j += 1) {
+          pairs.push({
+            left: { sequence_id: parsed[i].sequence_id, track_id: parsed[i].track_id },
+            right: { sequence_id: parsed[j].sequence_id, track_id: parsed[j].track_id },
+            similarity: featureSimilarity(sequencePayload(parsed[i].result), sequencePayload(parsed[j].result)),
+          });
+        }
+      }
+      return pairs;
+    }
+
+    function timingSummary(timings, processed) {
+      if (!timings || !processed) return "";
+      const avg = (key) => (Number(timings[key] || 0) / Math.max(1, processed)).toFixed(1);
+      return `，平均耗时 seek ${avg("seek_ms")}ms / draw ${avg("draw_ms")}ms / detect ${avg("detect_ms")}ms / crop ${avg("crop_ms")}ms`;
+    }
+
+    function createSequenceUploadQueue(limit, runSequence, onResult) {
+      const pending = [];
+      const active = new Set();
+      const results = [];
+      let accepted = 0;
+      function pump() {
+        while (active.size < limit && pending.length) {
+          const item = pending.shift();
+          const promise = (async () => {
+            try {
+              const result = await runSequence(item.seq, item.index);
+              const items = Array.isArray(result) ? result : [result];
+              items.forEach((entry) => {
+                results.push(entry);
+                if (onResult) onResult(entry, results);
+              });
+            } catch (error) {
+              const failed = {
+                sequence_id: item.seq.sequence_id,
+                track_id: item.seq.track_id,
+                source_frames: item.seq.source_frames,
+                uploaded_frames: item.seq.uploaded_frames,
+                preview_base64: item.seq.frames?.[0]?.content_base64 || "",
+                status: "failed",
+                error: error.message || String(error),
+              };
+              results.push(failed);
+              if (onResult) onResult(failed, results);
+            }
+          })().finally(() => {
+            active.delete(promise);
+            pump();
+          });
+          active.add(promise);
+        }
+      }
+      return {
+        add(seq) {
+          accepted += 1;
+          pending.push({ seq, index: accepted });
+          pump();
+        },
+        async wait() {
+          while (pending.length || active.size) {
+            await Promise.allSettled(Array.from(active));
+          }
+          return results;
+        },
+      };
+    }
+
+    function previewVideo(file) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement("video");
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+        video.src = URL.createObjectURL(file);
+        video.onloadeddata = () => {
+          draw(video, []);
+          URL.revokeObjectURL(video.src);
+          resolve();
+        };
+        video.onerror = () => reject(new Error("视频预览失败，浏览器不支持该格式。"));
+      });
+    }
+
+    $("identity").addEventListener("change", updateForm);
+    $("capability").addEventListener("change", updateForm);
+    $("apiKeyLink").addEventListener("click", openAPIKeyPage);
+    $("copyJSONButton").addEventListener("click", copyJSONResult);
+    $("chooseWorkdirButton").addEventListener("click", () => {
+      chooseWorkdir().catch((error) => {
+        setStatus(error.message || "选择结果保存目录失败。", true);
+      });
+    });
+    $("canvas").addEventListener("click", () => {
+      if ($("capability").value === "gaitPose" && poseViewerState) showPoseLightbox();
+    });
+    $("lightbox").addEventListener("click", (event) => {
+      if (event.target === $("lightbox")) closeLightbox();
+    });
+    $("sequenceLightbox").addEventListener("click", (event) => event.stopPropagation());
+    $("sequenceLightboxPrev").addEventListener("click", () => {
+      if (sequenceLightboxState) renderSequenceLightboxFrame(sequenceLightboxState.index - 1);
+    });
+    $("sequenceLightboxNext").addEventListener("click", () => {
+      if (sequenceLightboxState) renderSequenceLightboxFrame(sequenceLightboxState.index + 1);
+    });
+    $("resultAssets").addEventListener("click", (event) => {
+      const selectButton = event.target.closest(".sequence-select-badge");
+      if (selectButton && $("resultAssets").contains(selectButton)) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleLocalVideoSequenceSelection(selectButton.dataset.sequenceId);
+        return;
+      }
+      const thumb = event.target.closest(".sequence-thumb");
+      if (thumb && $("resultAssets").contains(thumb)) {
+        event.preventDefault();
+        showLocalVideoSequenceFrames(thumb.dataset.sequenceId);
+      }
+    });
+    $("files").addEventListener("change", async () => {
+      const files = sortedFiles();
+      if (!files.length) return;
+      try {
+        clearAction();
+        clearResultAssets();
+        setRuntimeInfo("");
+        if ($("capability").value === "localVideo") {
+          await previewVideo(files[0]);
+          loadedImage = null;
+        } else {
+          const dataURL = await readFileAsDataURL(files[0]);
+          loadedImage = await loadImage(dataURL);
+          draw(loadedImage, []);
+        }
+        setStatus("输入已加载，可以开始调用。");
+      } catch (error) {
+        setStatus(error.message || "输入加载失败。", true);
+      }
+    });
+
+    $("runButton").addEventListener("click", async () => {
+      const files = sortedFiles();
+      if (!files.length) {
+        setStatus("请先选择输入文件。", true);
+        return;
+      }
+      const identity = $("identity").value;
+      const capability = $("capability").value;
+      const apiKey = $("apiKey").value.trim();
+      if (identity === "registered" && !apiKey) {
+        setStatus("注册用户模式需要填写 API Key。", true);
+        showAction("获取 API Key", "#apiKeySection");
+        return;
+      }
+      $("runButton").disabled = true;
+      clearAction();
+      clearResultAssets();
+      setRuntimeInfo("");
+      $("raw").textContent = "{}";
+      setStatus("正在调用 W-Agent...");
+      try {
+        let data;
+        let completionMessage = "调用完成。";
+        if (capability === "locate") {
+          const firstDataURL = await readFileAsDataURL(files[0]);
+          loadedImage = loadedImage || await loadImage(firstDataURL);
+          const prompt = $("prompt").value.trim();
+          if (!prompt) throw new Error("请填写文字需求。");
+          const path = identity === "trial" ? "/v1/public/object-search/trial" : "/v1/object-search";
+          data = await requestJSON(path, {
+            image_base64: dataURLBase64(firstDataURL),
+            prompt,
+            fingerprint: browserFingerprint(),
+          }, identity === "registered" ? apiKey : "");
+        } else if (capability === "localVideo") {
+          if (!window.WAgentPersonDet) {
+            throw new Error("浏览器版 persondet 未加载完整，请重新下载最新 HTML。");
+          }
+          setStatus("视频解析进度：0/未知帧");
+          const liveLocalVideo = {
+            boxes: [],
+            results: [],
+            same_person_threshold: SAME_PERSON_THRESHOLD,
+          };
+          $("raw").textContent = JSON.stringify({ local_video: liveLocalVideo }, null, 2);
+          renderLocalVideoResults(liveLocalVideo);
+          const uploadQueue = createSequenceUploadQueue(2, async (seq, index) => {
+            setStatus(`已提取序列 ${index}，正在异步上传并解析，帧数 ${seq.frames.length}。`);
+            const result = await runSequenceByIdentity("sequence", seq.frames, identity, apiKey);
+            localVideoFrameStore.set(sequenceKey(seq.sequence_id), seq.frames || []);
+            const splitSequences = sequencePayloads(result);
+            return splitSequences.map((split, splitIndex) => ({
+              sequence_id: split.sequence_id || `${seq.sequence_id}_split_${splitIndex + 1}`,
+              source_sequence_id: seq.sequence_id,
+              track_id: seq.track_id,
+              source_frames: seq.source_frames,
+              uploaded_frames: split.frame_count || seq.uploaded_frames,
+              preview_base64: localVideoFramesForResult(split, seq.frames)[0]?.content_base64 || seq.frames?.[0]?.content_base64 || "",
+              result: split,
+              result_response: result,
+              split_index: splitIndex + 1,
+            }));
+        }, (item, results) => {
+            liveLocalVideo.results = results.slice();
+            $("raw").textContent = JSON.stringify({ local_video: liveLocalVideo }, null, 2);
+            if (item && item.status !== "failed") {
+              renderLocalVideoResults(liveLocalVideo, localVideoViewState.page);
+            }
+          });
+          const extracted = await window.WAgentPersonDet.extractLocalVideoSequence(files[0], {
+            onSequence: (seq) => {
+              localVideoFrameStore.set(sequenceKey(seq.sequence_id), seq.frames || []);
+              uploadQueue.add(seq);
+            },
+            progress: (p) => {
+              if (p.stage === "detector" || p.stage === "decode") return;
+              if (p.stage === "sampling") {
+                return;
+              }
+              if (p.stage === "sequence_ready") return;
+              setStatus(`视频解析进度：${p.processed || 0}/${p.total || "未知"}帧`);
+            },
+          });
+          setStatus(`视频本地解析完成，等待已提取序列的 API 解析结果...`);
+          const results = await uploadQueue.wait();
+          const successCount = results.filter((item) => item && item.status !== "failed").length;
+          const failedCount = results.filter((item) => item && item.status === "failed").length;
+          liveLocalVideo.boxes = extracted.boxes;
+          liveLocalVideo.results = results;
+          Object.assign(liveLocalVideo, extracted.meta || {});
+          data = {
+            local_video: liveLocalVideo,
+          };
+          completionMessage = `视频序列解析完成：成功 ${successCount} 个，失败 ${failedCount} 个。`;
+          setStatus(completionMessage);
+        } else {
+          const firstDataURL = await readFileAsDataURL(files[0]);
+          loadedImage = loadedImage || await loadImage(firstDataURL);
+          const frames = await loadFrames(files);
+          data = await runSequenceByIdentity(capability, frames, identity, apiKey);
+        }
+        $("raw").textContent = JSON.stringify(data, null, 2);
+        const boxes = capability === "localVideo" ? (data.local_video?.boxes || []) : extractBoxes(data);
+        if (capability === "localVideo") {
+          renderLocalVideoResults(data.local_video || {});
+        } else if (capability === "sequence") {
+          drawSequenceSummary(data);
+        } else if (capability === "gaitPose" && loadedImage) {
+          await setupPoseViewer(files, data);
+          setStatus("关节点调用完成，正在浏览器本地生成 3D 视频...");
+          const rendered = await renderPose3DVideoInBrowser(data, pose3DRenderOptions()).catch((error) => {
+            console.warn("[W-Agent] browser 3D pose video render failed:", error);
+            const slot = $("poseVideoSlot");
+            if (slot) slot.innerHTML = `<p class="hint">${error.message || "浏览器本地生成 3D 视频失败。"} 2D 关节点已可逐帧查看。</p>`;
+            return null;
+          });
+          if (rendered?.url) {
+            const pose2Ds = data?.result?.pose_2ds || data?.pose_2ds || [];
+            if (poseViewerState) poseViewerState.videoURL = rendered.url;
+            showPoseVideo(rendered.url, `2D ${pose2Ds.length} 帧 / 3D ${rendered.frames} 帧 / ${rendered.fps} FPS / ${rendered.width}x${rendered.height}，本地生成 WebM，大小 ${(rendered.size / 1024).toFixed(1)} KB。`);
+          } else {
+            const slot = $("poseVideoSlot");
+            if (slot) slot.innerHTML = `<p class="hint">接口返回中没有可渲染的 3D 关节点。2D 关节点已可逐帧查看。</p>`;
+          }
+        } else if (loadedImage) {
+          draw(loadedImage, boxes);
+        }
+        if (workdirHandle) {
+          try {
+            const dirname = await saveResultToWorkdir(capability, data);
+            setStatus(dirname ? `${completionMessage} 结果已保存到结果保存目录：${dirname}` : completionMessage);
+          } catch (saveError) {
+            setStatus(`调用完成，但保存到结果保存目录失败：${saveError.message || saveError}`, true);
+          }
+        } else {
+          setStatus(completionMessage);
+        }
+      } catch (error) {
+        if (error instanceof TypeError && String(error.message || "").toLowerCase().includes("fetch")) {
+          setStatus("请求无法发送。请检查网络连接、HTTPS/CORS 配置是否可访问。", true);
+        } else {
+          setStatus(error.message || "调用失败。", true);
+        }
+        showErrorAction(error);
+      } finally {
+        $("runButton").disabled = false;
+      }
+    });
+
+    if (!window.showDirectoryPicker) {
+      $("chooseWorkdirButton").disabled = true;
+      $("workdirLabel").textContent = "当前浏览器不支持自动保存结果保存目录。";
+    }
+
+    updateForm();
+  </script>
+</body>
+</html>

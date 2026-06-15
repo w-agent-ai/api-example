@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 // Requires libcurl and nlohmann/json:
 //   sudo apt-get install -y libcurl4-openssl-dev nlohmann-json3-dev
@@ -73,6 +74,36 @@ std::string contentTypeFor(const std::string& filename) {
     return "video/quicktime";
   }
   return "application/octet-stream";
+}
+
+static constexpr double kSamePersonThreshold = 0.7;
+
+std::vector<double> numericVector(const nlohmann::json& item, const char* key) {
+  std::vector<double> out;
+  if (!item.contains(key) || !item[key].is_array()) return out;
+  for (const auto& value : item[key]) {
+    if (value.is_number()) out.push_back(value.get<double>());
+  }
+  return out;
+}
+
+double dotProduct(const std::vector<double>& left, const std::vector<double>& right) {
+  size_t used = std::min(left.size(), right.size());
+  double score = 0.0;
+  for (size_t i = 0; i < used; ++i) score += left[i] * right[i];
+  return score;
+}
+
+double fusedIdentitySimilarity(double faceSim, double gaitSim, double reidSim) {
+  double result = std::max(gaitSim, 0.1);
+  if (faceSim > 0.45)      result = std::max(gaitSim, 0.7);
+  else if (faceSim > 0.35) result *= 1.1;
+  else if (faceSim > 0.4)  result *= 1.1;
+  else if (faceSim != 0 && faceSim < 0.1) result *= 0.9;
+  if (reidSim > 0.8)       result *= 1.1;
+  if (faceSim > 0.5)       result *= 1.1;
+  if (faceSim > 0.6)       result *= 1.1;
+  return std::min(result, 1.0);
 }
 
 // Send an authenticated JSON request to the registered-user API.
@@ -212,6 +243,20 @@ int main() {
       printf("first_gait_feature_dim=%zu\n", first.value("gait_feature", nlohmann::json::array()).size());
       printf("first_reid_feature_dim=%zu\n", first.value("reid_feature", nlohmann::json::array()).size());
       printf("first_face_feature_dim=%zu\n", first.value("face_feature", nlohmann::json::array()).size());
+    }
+    if (result.contains("sequences") && result["sequences"].is_array() && result["sequences"].size() >= 2) {
+      const nlohmann::json& left = result["sequences"][0];
+      const nlohmann::json& right = result["sequences"][1];
+      double gaitSim = dotProduct(numericVector(left, "gait_feature"), numericVector(right, "gait_feature"));
+      double reidSim = dotProduct(numericVector(left, "reid_feature"), numericVector(right, "reid_feature"));
+      double faceSim = dotProduct(numericVector(left, "face_feature"), numericVector(right, "face_feature"));
+      double fusedSim = fusedIdentitySimilarity(faceSim, gaitSim, reidSim);
+      printf("same_person_threshold=%.2f\n", kSamePersonThreshold);
+      printf("seq0_seq1_gait_similarity=%.6f\n", gaitSim);
+      printf("seq0_seq1_reid_similarity=%.6f\n", reidSim);
+      printf("seq0_seq1_face_similarity=%.6f\n", faceSim);
+      printf("seq0_seq1_fused_similarity=%.6f\n", fusedSim);
+      printf("seq0_seq1_same_person_likely=%s\n", fusedSim > kSamePersonThreshold ? "true" : "false");
     }
 
     curl_global_cleanup();

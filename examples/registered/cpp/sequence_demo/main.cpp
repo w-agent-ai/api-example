@@ -22,6 +22,7 @@ static const std::string kAPIKey = "";
 
 // A sequence is a directory of cropped person images belonging to one track.
 static const std::string kSeqDir = "../../../seqs/nonuser/day_cl01/40-day_cl01-22949/imgs";
+static constexpr double kSamePersonThreshold = 0.7;
 
 struct HTTPResponse {
   long status = 0;
@@ -208,19 +209,25 @@ int main() {
   // from their account balance by the server.
   nlohmann::json parsed = nlohmann::json::parse(requestJSON("POST", "/v1/sequences/" + taskID + "/parse", &parsePayload).body);
 
-  // Step 6: fetch the stored result. This is useful if the caller wants to
+  // Step 6: fetch the stored result list. This is useful if the caller wants to
   // retrieve the result again later by task_id.
   nlohmann::json result = nlohmann::json::parse(requestJSON("GET", "/v1/sequences/" + taskID + "/result", nullptr).body);
+  nlohmann::json first = nlohmann::json::object();
+  if (result.contains("sequences") && result["sequences"].is_array() && !result["sequences"].empty()) {
+    first = result["sequences"][0];
+  }
 
   // Feature vectors are usually 512-dimensional. face_feature may be empty
   // when no usable face is found in the sequence.
   printf("task_id=%s\n", taskID.c_str());
   printf("status=%s\n", parsed.value("status", "").c_str());
-  printf("sequence_id=%s\n", result.value("sequence_id", "").c_str());
-  printf("frame_count=%d\n", result.value("frame_count", 0));
-  printf("gait_feature_dim=%zu\n", result.value("gait_feature", nlohmann::json::array()).size());
-  printf("reid_feature_dim=%zu\n", result.value("reid_feature", nlohmann::json::array()).size());
-  printf("face_feature_dim=%zu\n", result.value("face_feature", nlohmann::json::array()).size());
+  printf("sequence_count=%d\n", parsed.value("sequence_count", 0));
+  printf("sequence_id=%s\n", first.value("sequence_id", "").c_str());
+  printf("frame_count=%d\n", first.value("frame_count", 0));
+  printf("gait_feature_dim=%zu\n", first.value("gait_feature", nlohmann::json::array()).size());
+  printf("reid_feature_dim=%zu\n", first.value("reid_feature", nlohmann::json::array()).size());
+  printf("face_feature_dim=%zu\n", first.value("face_feature", nlohmann::json::array()).size());
+  printf("same_person_threshold=%.2f\n", kSamePersonThreshold);
   nlohmann::json gaitPoseResult = gaitPose.value("result", nlohmann::json::object());
   printf("gait_pose_status=%s\n", gaitPose.value("status", "").c_str());
   printf("gait_pose_pose2d_frames=%zu\n", gaitPoseResult.value("pose_2ds", nlohmann::json::array()).size());

@@ -6,7 +6,8 @@ This script uses a registered API key, recursively processes all leaf sequence
 directories under SEQ_ROOT and all video files under VIDEO_ROOT, then writes one
 JSON result per item plus summary and similarity reports under RESULT_DIR.
 
-The API result can include optional pose_2ds, pose_3ds, and emotions fields.
+The API result can include optional emotions fields. pose_2ds and pose_3ds
+are returned only by the standalone gait-pose API.
 """
 
 from __future__ import annotations
@@ -197,7 +198,8 @@ def run_registered_sequence(session: requests.Session, headers: dict[str, str], 
     )
 
     # Registered sequence parsing returns synchronously after SDK processing and
-    # account-balance billing are complete.
+    # account-balance billing are complete. One uploaded track can produce
+    # multiple single-person results in "sequences".
     parsed = request_json(
         session,
         "POST",
@@ -212,6 +214,7 @@ def run_registered_sequence(session: requests.Session, headers: dict[str, str], 
         "frame_count": len(frames),
         "gait_pose": gait_pose,
         "parsed": parsed,
+        "sequence_count": parsed.get("sequence_count") or len(parsed.get("sequences") or []),
         "result": result,
     }
 
@@ -387,11 +390,13 @@ def pairwise_similarity(sequences: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 def sequence_from_registered_record(record: dict[str, Any]) -> dict[str, Any] | None:
     """Extract the sequence object from a saved registered-user result file."""
-    parsed_sequence = nested_get(record, "result", "parsed", "sequence")
-    if isinstance(parsed_sequence, dict):
-        return parsed_sequence
-    result_sequence = nested_get(record, "result", "result")
-    return result_sequence if isinstance(result_sequence, dict) else None
+    parsed_sequences = nested_get(record, "result", "parsed", "sequences")
+    if isinstance(parsed_sequences, list) and parsed_sequences:
+        return parsed_sequences[0] if isinstance(parsed_sequences[0], dict) else None
+    result_sequences = nested_get(record, "result", "result", "sequences")
+    if isinstance(result_sequences, list) and result_sequences:
+        return result_sequences[0] if isinstance(result_sequences[0], dict) else None
+    return None
 
 
 def extract_features(sequence: dict[str, Any]) -> dict[str, list[float]]:
@@ -403,12 +408,55 @@ def extract_features(sequence: dict[str, Any]) -> dict[str, list[float]]:
     }
 
 
+SAME_PERSON_THRESHOLD = 0.7
+
+
 def feature_similarity(left: dict[str, list[float]], right: dict[str, list[float]]) -> dict[str, Any]:
-    """Compute gait, ReID and face similarities for two feature sets."""
-    return {
+    """Compute per-feature dot products plus fused identity similarity."""
+    scores = {
         name: dot_product(left.get(name) or [], right.get(name) or [])
         for name in ("gait_feature", "reid_feature", "face_feature")
     }
+    gait_sim = score_or_zero(scores["gait_feature"])
+    reid_sim = score_or_zero(scores["reid_feature"])
+    face_sim = score_or_zero(scores["face_feature"])
+    fused = fused_identity_similarity(face_sim, gait_sim, reid_sim)
+    scores["fused_similarity"] = {
+        "score": fused,
+        "threshold": SAME_PERSON_THRESHOLD,
+        "same_person_likely": fused > SAME_PERSON_THRESHOLD,
+        "inputs": {
+            "face_similarity": face_sim,
+            "gait_similarity": gait_sim,
+            "reid_similarity": reid_sim,
+        },
+    }
+    return scores
+
+
+def score_or_zero(item: dict[str, Any]) -> float:
+    score = item.get("score")
+    return float(score) if isinstance(score, (int, float)) else 0.0
+
+
+def fused_identity_similarity(face_sim: float, gait_sim: float, reid_sim: float) -> float:
+    """Fuse face, gait and ReID similarities. Scores above 0.7 likely indicate the same person."""
+    result = max(gait_sim, 0.1)
+    if face_sim > 0.45:
+        result = max(gait_sim, 0.7)
+    elif face_sim > 0.35:
+        result *= 1.1
+    elif face_sim > 0.4:
+        result *= 1.1
+    elif face_sim != 0 and face_sim < 0.1:
+        result *= 0.9
+    if reid_sim > 0.8:
+        result *= 1.1
+    if face_sim > 0.5:
+        result *= 1.1
+    if face_sim > 0.6:
+        result *= 1.1
+    return min(result, 1.0)
 
 
 def dot_product(left: list[float], right: list[float]) -> dict[str, Any]:

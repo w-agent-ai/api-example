@@ -99,9 +99,11 @@ def main() -> int:
     response.raise_for_status()
 
     body = response.json()
-    sequence = body.get("sequence", {})
+    sequences = body.get("sequences") or []
+    sequence = sequences[0] if sequences else {}
     print("---summary---")
     print(f"status={body.get('status')}")
+    print(f"sequence_count={body.get('sequence_count') or len(sequences)}")
     print(f"sequence_id={sequence.get('sequence_id')}")
     print(f"result_frame_count={sequence.get('frame_count')}")
     print(f"gait_image_url={nested_get(sequence, 'gait_image', 'url')}")

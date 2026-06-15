@@ -38,7 +38,8 @@ ROOT = Path(__file__).resolve().parents[3]
 
 # Anonymous x402 demo configuration.
 #
-# Result JSON may include optional pose_2ds, pose_3ds, and emotions fields.
+# Result JSON may include optional emotions fields. pose_2ds and pose_3ds are
+# returned only by the standalone gait-pose API.
 #
 # Public APIs do not use a registered API Key. Instead, the client receives a
 # 402 Payment Required challenge, signs an x402 payment payload with an EVM
@@ -214,13 +215,15 @@ def run_public_sequence_x402(session: requests.Session, private_key: str, seq_di
     paid_resp, selected = pay_x402_request(session, private_key, preview, parse_url, {"frames": parse_frames}, task_token)
     if paid_resp.status_code != 200:
         raise_http(paid_resp)
+    parsed = paid_resp.json()
     return {
         "task_id": task_id,
         "task_token": task_token,
         "sequence_dir": str(seq_dir),
         "frame_count": len(frames),
         "selected_accept": selected,
-        "parsed": paid_resp.json(),
+        "sequence_count": parsed.get("sequence_count") or len(parsed.get("sequences") or []),
+        "parsed": parsed,
     }
 
 
@@ -534,9 +537,10 @@ def compute_sequence_similarity_report(sequence_items: list[dict[str, Any]]) -> 
         if not result_file:
             continue
         record = read_json(Path(result_file))
-        sequence = nested_get(record, "result", "parsed", "sequence")
-        if not isinstance(sequence, dict):
+        parsed_sequences = nested_get(record, "result", "parsed", "sequences")
+        if not isinstance(parsed_sequences, list) or not parsed_sequences or not isinstance(parsed_sequences[0], dict):
             continue
+        sequence = parsed_sequences[0]
         identity = sequence_identity(sequence, source=item.get("source", ""), task_id=item.get("task_id", ""))
         sequences.append({"identity": identity, "features": extract_features(sequence)})
 
@@ -594,12 +598,55 @@ def extract_features(sequence: dict[str, Any]) -> dict[str, list[float]]:
     }
 
 
+SAME_PERSON_THRESHOLD = 0.7
+
+
 def feature_similarity(left: dict[str, list[float]], right: dict[str, list[float]]) -> dict[str, Any]:
-    """Compute gait, ReID and face similarities for two feature sets."""
-    return {
+    """Compute per-feature dot products plus fused identity similarity."""
+    scores = {
         name: dot_product(left.get(name) or [], right.get(name) or [])
         for name in ("gait_feature", "reid_feature", "face_feature")
     }
+    gait_sim = score_or_zero(scores["gait_feature"])
+    reid_sim = score_or_zero(scores["reid_feature"])
+    face_sim = score_or_zero(scores["face_feature"])
+    fused = fused_identity_similarity(face_sim, gait_sim, reid_sim)
+    scores["fused_similarity"] = {
+        "score": fused,
+        "threshold": SAME_PERSON_THRESHOLD,
+        "same_person_likely": fused > SAME_PERSON_THRESHOLD,
+        "inputs": {
+            "face_similarity": face_sim,
+            "gait_similarity": gait_sim,
+            "reid_similarity": reid_sim,
+        },
+    }
+    return scores
+
+
+def score_or_zero(item: dict[str, Any]) -> float:
+    score = item.get("score")
+    return float(score) if isinstance(score, (int, float)) else 0.0
+
+
+def fused_identity_similarity(face_sim: float, gait_sim: float, reid_sim: float) -> float:
+    """Fuse face, gait and ReID similarities. Scores above 0.7 likely indicate the same person."""
+    result = max(gait_sim, 0.1)
+    if face_sim > 0.45:
+        result = max(gait_sim, 0.7)
+    elif face_sim > 0.35:
+        result *= 1.1
+    elif face_sim > 0.4:
+        result *= 1.1
+    elif face_sim != 0 and face_sim < 0.1:
+        result *= 0.9
+    if reid_sim > 0.8:
+        result *= 1.1
+    if face_sim > 0.5:
+        result *= 1.1
+    if face_sim > 0.6:
+        result *= 1.1
+    return min(result, 1.0)
 
 
 def dot_product(left: list[float], right: list[float]) -> dict[str, Any]:
