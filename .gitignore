@@ -24,3 +24,11 @@ dist/
 *.key
 *.pem
 
+
+# Generated/local artifacts
+__pycache__/
+*.pyc
+examples/**/build/
+examples/**/sequence_demo
+examples/**/video_demo
+examples/test_x402_all_routes_report.json

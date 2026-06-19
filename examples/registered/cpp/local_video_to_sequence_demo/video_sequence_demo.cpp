@@ -378,9 +378,17 @@ private:
         cv::Mat input;
         float sx = 1.0f;
         float sy = 1.0f;
-        if (opt_.resize_width > 0 && frame.cols != opt_.resize_width) {
-            int resized_h = round_to_multiple(static_cast<float>(frame.rows) * opt_.resize_width / frame.cols, 32);
-            cv::resize(frame, input, cv::Size(opt_.resize_width, resized_h), 0, 0, cv::INTER_LINEAR);
+        if (opt_.resize_width > 0 && std::max(frame.cols, frame.rows) > opt_.resize_width) {
+            int resized_w = frame.cols;
+            int resized_h = frame.rows;
+            if (frame.cols >= frame.rows) {
+                resized_w = opt_.resize_width;
+                resized_h = round_to_multiple(static_cast<float>(frame.rows) * resized_w / frame.cols, 32);
+            } else {
+                resized_h = opt_.resize_width;
+                resized_w = round_to_multiple(static_cast<float>(frame.cols) * resized_h / frame.rows, 32);
+            }
+            cv::resize(frame, input, cv::Size(resized_w, resized_h), 0, 0, cv::INTER_LINEAR);
             sx = static_cast<float>(frame.cols) / input.cols;
             sy = static_cast<float>(frame.rows) / input.rows;
         } else {

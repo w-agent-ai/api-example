@@ -9,10 +9,10 @@
       --ink: #17212b;
       --muted: #667085;
       --line: #d7dde5;
-      --bg: #f3f7f2;
+      --bg: #ffffff;
       --card: #ffffff;
-      --accent: #1f7a4d;
-      --accent-dark: #145536;
+      --accent: #0f62fe;
+      --accent-dark: #0b4ed0;
       --danger: #b42318;
     }
     * { box-sizing: border-box; }
@@ -24,12 +24,78 @@
       min-height: 100vh;
     }
     main {
-      width: calc(100vw - 10px);
+      width: 100%;
       margin: 0;
-      padding: 24px 5px 0;
+      padding: 70px 18px 0;
+    }
+    .site-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 30px;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(10px);
+    }
+    .site-nav {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+    .site-nav a,
+    .site-actions a {
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 520;
+      line-height: 1;
+    }
+    .site-nav a:hover,
+    .site-actions a:hover {
+      color: var(--accent);
+    }
+    .site-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      white-space: nowrap;
+    }
+    .locale-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 520;
+    }
+    .locale-inline select {
+      width: auto;
+      height: 34px;
+      min-height: 34px;
+      padding: 5px 28px 5px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+    }
+    .login-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 68px;
+      height: 34px;
+      padding: 0 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
     }
     .topbar {
-      margin-bottom: 22px;
+      margin-bottom: 30px;
       text-align: center;
     }
     .topbar h1 {
@@ -40,10 +106,40 @@
     }
     .workspace {
       display: grid;
-      grid-template-columns: 300px minmax(0, 1fr);
-      gap: 20px;
-      align-items: stretch;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
       margin-bottom: 20px;
+    }
+    .control-row {
+      display: grid;
+      grid-template-columns: 126px 250px 150px 210px 300px 110px;
+      column-gap: 25px;
+      row-gap: 5px;
+      align-items: start;
+      justify-content: center;
+      margin: 0 auto 14px;
+    }
+    .control-row > label {
+      display: grid;
+      grid-template-rows: 46px 18px;
+      gap: 5px;
+    }
+    #capabilityRow {
+      position: relative;
+    }
+    .control-row > button {
+      height: 46px;
+      min-height: 46px;
+      align-self: start;
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    #capabilityRow #status {
+      position: absolute;
+      left: 0;
+      top: 51px;
+      width: 710px;
     }
     .panel {
       background: transparent;
@@ -65,8 +161,8 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
-    .form { display: grid; gap: 14px; }
-    .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .form { display: grid; gap: 0; }
+    .grid2 { display: contents; }
     label {
       display: grid;
       gap: 7px;
@@ -77,12 +173,61 @@
     input, textarea, button, select { font: inherit; }
     input[type="text"], input[type="url"], input[type="password"], input[type="file"], textarea, select {
       width: 100%;
+      height: 46px;
+      min-height: 46px;
       border: 1px solid var(--line);
       background: #fff;
       padding: 11px 12px;
       color: var(--ink);
+      border-radius: 10px;
     }
-    textarea { min-height: 58px; resize: vertical; }
+    input[type="file"] {
+      min-height: 46px;
+      padding: 0 12px 0 0;
+      line-height: 44px;
+      color: transparent;
+      overflow: hidden;
+    }
+    input[type="file"]::file-selector-button {
+      height: 44px;
+      margin: 0 10px 0 0;
+      border: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 10px 0 0 10px;
+      background: #f7f9fc;
+      color: var(--ink);
+      padding: 0 13px;
+      cursor: pointer;
+    }
+    .file-picker-wrap {
+      position: relative;
+      min-width: 0;
+    }
+    .file-picker-wrap input[type="file"] {
+      display: block;
+    }
+    .file-name-label {
+      position: absolute;
+      left: 90px;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+    }
+    .file-name-label:empty {
+      display: none;
+    }
+    textarea {
+      height: 46px;
+      min-height: 46px;
+      resize: none;
+    }
     button {
       border: 0;
       background: var(--accent);
@@ -90,22 +235,32 @@
       padding: 12px 16px;
       font-weight: 800;
       cursor: pointer;
+      border-radius: 10px;
     }
     button:hover { background: var(--accent-dark); }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .disabled-field {
+      opacity: 0.62;
+    }
+    .disabled-field input,
+    .disabled-field textarea {
+      background: #f7f9fc;
+      color: var(--muted);
+      cursor: not-allowed;
+    }
     .status {
-      min-height: 24px;
+      min-height: 18px;
       color: var(--muted);
       font-size: 13px;
-      line-height: 1.6;
+      line-height: 18px;
     }
     .status.error { color: var(--danger); }
     .runtime-info {
-      min-height: 22px;
+      min-height: 18px;
       color: var(--accent-dark);
       font-size: 13px;
       font-weight: 800;
-      line-height: 1.6;
+      line-height: 18px;
     }
     .required { color: var(--danger); margin-left: 3px; }
     .field-head {
@@ -115,10 +270,12 @@
     }
     .link-row {
       display: flex;
-      flex-direction: column;
-      align-items: flex-start;
+      flex-direction: row;
+      align-items: center;
       gap: 4px;
+      height: 18px;
       margin-top: 0;
+      line-height: 18px;
     }
     .text-link {
       color: var(--accent-dark);
@@ -144,23 +301,31 @@
     .workdir-row {
       display: grid;
       gap: 6px;
+      margin-top: 10px;
     }
     .workdir-controls {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
     }
     .workdir-controls button {
-      padding: 9px 12px;
-      font-size: 13px;
+      padding: 7px 10px;
+      font-size: 12px;
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
     }
     .canvas-wrap {
       position: relative;
       overflow: hidden;
-      height: min(46vh, 420px);
+      height: calc(100vh - 156px);
       min-height: 280px;
       background: #fff;
       cursor: zoom-in;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .preview-panel.pose-preview-mode {
       --pose-media-height: min(61vh, 576px);
@@ -278,6 +443,68 @@
       border: 0;
       background: transparent;
     }
+    .preview-panel.sequence-summary-mode .canvas-wrap {
+      display: none;
+    }
+    .preview-panel.sequence-summary-mode .result-assets {
+      display: block;
+      max-height: none;
+      overflow: visible;
+      margin-top: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    .preview-panel.sequence-summary-mode,
+    .preview-panel.local-video-mode {
+      display: flex;
+      justify-content: center;
+    }
+    .sequence-summary-panel {
+      width: min(980px, 100%);
+      min-height: 420px;
+      padding: 34px 44px;
+      background: #f8faf7;
+      color: var(--ink);
+    }
+    .sequence-summary-panel h2 {
+      margin: 0 0 26px;
+      font-size: 32px;
+      line-height: 1.2;
+      letter-spacing: -0.04em;
+    }
+    .sequence-summary-list {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      column-gap: 16px;
+      row-gap: 20px;
+      margin: 0;
+    }
+    .sequence-summary-list dt {
+      color: #667085;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .sequence-summary-list dd {
+      margin: 0;
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+    .sequence-summary-section {
+      margin-top: 28px;
+    }
+    .sequence-summary-section h3 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      line-height: 1.3;
+    }
+    .sequence-summary-section p {
+      color: #667085;
+      font-size: 14px;
+      line-height: 1.8;
+    }
     .local-video-results {
       display: grid;
       gap: 12px;
@@ -315,7 +542,7 @@
     }
     .local-video-grid {
       --local-video-card-width: 112px;
-      --local-video-card-height: 168px;
+      --local-video-card-height: 160px;
       --local-video-row-gap: 6px;
       display: grid;
       grid-template-columns: repeat(12, var(--local-video-card-width));
@@ -347,7 +574,7 @@
       position: relative;
       background: #eef2ed;
       cursor: zoom-in;
-      height: 140px;
+      height: 132px;
       flex: 0 0 auto;
     }
     .sequence-card img {
@@ -448,7 +675,8 @@
       gap: 4px;
     }
     .pose-controls input {
-      border: 0;
+      border: 1px solid var(--line);
+      border-radius: 10px;
       padding: 8px 9px;
       width: 100%;
     }
@@ -530,10 +758,20 @@
       padding: 7px 12px;
       font-size: 13px;
     }
-    .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .hint { font-size: 13px; color: var(--muted); line-height: 18px; }
     .hint:empty { display: none; }
+    #fileLabel:empty { display: none; }
+    .status-row {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      min-height: 18px;
+      margin: 0 0 14px;
+      text-align: center;
+    }
     .json-panel {
-      margin-top: 18px;
+      margin-top: 0;
       border-top: 0;
       padding-top: 0;
     }
@@ -561,9 +799,13 @@
       font-size: 12px;
       white-space: nowrap;
     }
+    .json-body {
+      position: relative;
+    }
     .json-panel pre {
-      max-height: 280px;
-      min-height: 180px;
+      height: calc(100vh - 400px);
+      max-height: none;
+      min-height: 240px;
       overflow: auto;
       border: 1px solid var(--line);
       background: #fff;
@@ -571,9 +813,29 @@
       padding: 14px;
       font-size: 12px;
       line-height: 1.55;
+      border-radius: 10px;
     }
     @media (max-width: 900px) {
-      .workspace, .grid2 { grid-template-columns: 1fr; }
+      .site-header {
+        position: static;
+        height: auto;
+        padding: 14px 12px;
+        align-items: flex-start;
+        gap: 14px;
+      }
+      .site-nav {
+        flex-wrap: wrap;
+        gap: 12px 16px;
+      }
+      .site-actions {
+        flex-shrink: 0;
+      }
+      main {
+        padding-top: 24px;
+      }
+      .workspace, .control-row {
+        grid-template-columns: 1fr;
+      }
       .local-video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .preview-panel.pose-preview-mode {
         grid-template-columns: 1fr;
@@ -589,61 +851,91 @@
   </style>
 </head>
 <body>
+  <header class="site-header">
+    <nav class="site-nav" aria-label="W-Agent navigation">
+      <a href="/portal" target="_blank" rel="noopener" data-i18n="navHome">首页</a>
+      <a href="/portal#capabilities" target="_blank" rel="noopener" data-i18n="navCapabilities">产品能力</a>
+      <a href="/portal#api" target="_blank" rel="noopener" data-i18n="navAPI">API 接入</a>
+      <a href="/portal#agentAccess" target="_blank" rel="noopener" data-i18n="navAgentAccess">Agent 接入</a>
+      <a href="/portal#walletSection" target="_blank" rel="noopener" data-i18n="walletRecharge">余额与充值</a>
+      <a href="/portal#apiKeySection" target="_blank" rel="noopener" data-i18n="apiKeyManagement">API Key 管理</a>
+      <a href="/portal#pricing" target="_blank" rel="noopener" data-i18n="navPricing">计费方式</a>
+      <a href="/portal#usageSection" target="_blank" rel="noopener" data-i18n="usageRecords">使用记录</a>
+      <a href="/portal#demos" target="_blank" rel="noopener" data-i18n="navDemos">Demo 下载</a>
+    </nav>
+    <div class="site-actions">
+      <label class="locale-inline">
+        <span data-i18n="localeLabel">language</span>
+        <select id="localeSelect">
+          <option value="zh-CN">中文</option>
+          <option value="en-US">English</option>
+        </select>
+      </label>
+      <a class="login-link" href="/portal#login" target="_blank" rel="noopener" data-i18n="login">登录</a>
+    </div>
+  </header>
   <main>
     <header class="topbar">
-      <h1>W-Agent 浏览器客户端</h1>
+      <h1 data-i18n="browserTitle">W-Agent 浏览器客户端</h1>
     </header>
+
+    <section class="control-row">
+      <label>
+        <select id="identity">
+          <option value="trial" data-i18n="identityTrial">免费试用</option>
+          <option value="registered" data-i18n="identityRegistered">注册用户</option>
+        </select>
+      </label>
+      <label id="apiKeyRow">
+        <input id="apiKey" type="password" placeholder="API Key">
+        <span id="apiKeyHelp" class="link-row">
+          <a class="text-link" href="#" id="apiKeyLink" data-i18n="getAPIKey">获取 API Key</a>
+        </span>
+      </label>
+      <label id="capabilityRow">
+        <select id="capability">
+          <option value="locate" data-i18n="capLocate">图搜万物</option>
+          <option value="sequence" data-i18n="capSequence">序列解析</option>
+          <option value="gaitPose" data-i18n="capGaitPose">人体关节点</option>
+          <option value="localVideo" data-i18n="capLocalVideo">本地视频转序列</option>
+        </select>
+        <span id="status" class="status inline-under"></span>
+      </label>
+      <label>
+        <span class="file-picker-wrap">
+          <input id="files" type="file" accept="image/*" multiple>
+          <span id="fileNameLabel" class="file-name-label"></span>
+        </span>
+        <span class="hint inline-under" id="hint"></span>
+      </label>
+      <label id="promptRow">
+        <textarea id="prompt" rows="2" placeholder="猫、公交车、穿红衣服的人" data-i18n-placeholder="promptPlaceholder"></textarea>
+      </label>
+      <button id="runButton" type="button" data-i18n="runButton">开始调用</button>
+    </section>
+
+    <div class="status-row">
+      <div id="runtimeInfo" class="runtime-info"></div>
+      <div id="actionRow" class="action-row"></div>
+    </div>
 
     <section class="workspace">
       <div class="panel">
-        <div class="form">
-          <div class="grid2">
-            <label>
-              <select id="identity">
-                <option value="trial">免注册试用</option>
-                <option value="registered">注册用户 API Key</option>
-              </select>
-            </label>
-            <label id="apiKeyRow"><span class="field-head">API Key<span class="required">*</span></span>
-              <input id="apiKey" type="password" placeholder="gak_...">
-              <span id="apiKeyHelp" class="link-row">
-                <a class="text-link" href="#" id="apiKeyLink">获取 API Key</a>
-              </span>
-            </label>
-            <label>
-              <select id="capability">
-                <option value="locate">图搜万物</option>
-                <option value="sequence">序列解析</option>
-                <option value="gaitPose">人体关节点</option>
-                <option value="localVideo">本地视频转序列</option>
-              </select>
-            </label>
-          </div>
-          <label id="promptRow">文字需求
-            <textarea id="prompt" rows="2" placeholder="例如：找出图中的人、红色车辆、门口的箱子">person</textarea>
-          </label>
-          <label><span id="fileLabel"></span>
-            <input id="files" type="file" accept="image/*" multiple>
-          </label>
-          <div class="hint" id="hint">图搜万物请选择一张图片；序列解析和人体关节点请选择按文件名排序的多张序列图片；本地视频转序列会在浏览器内完成解码、检测、跟踪和裁剪，然后上传序列图片。</div>
-          <div class="workdir-row">
-            <div class="workdir-controls">
-              <button id="chooseWorkdirButton" type="button">选择结果保存目录</button>
-              <span id="workdirLabel" class="hint">未选择，结果不会自动保存。</span>
-            </div>
-          </div>
-          <button id="runButton" type="button">开始调用</button>
-          <div id="status" class="status">等待选择输入。</div>
-          <div id="runtimeInfo" class="runtime-info"></div>
-          <div id="actionRow" class="action-row"></div>
-        </div>
         <div class="json-panel">
           <div class="json-head">
-            <h2>JSON 结果</h2>
+            <h2 data-i18n="jsonResult">JSON 结果</h2>
             <span id="copyJSONHint" class="json-copy-hint"></span>
-            <button id="copyJSONButton" class="copy-button" type="button">复制</button>
+            <button id="copyJSONButton" class="copy-button" type="button" data-i18n="copy">复制</button>
           </div>
-          <pre id="raw">{}</pre>
+          <div class="json-body">
+            <pre id="raw">{}</pre>
+          </div>
+        </div>
+        <div class="workdir-row">
+          <div class="workdir-controls">
+            <button id="chooseWorkdirButton" type="button" data-i18n="chooseWorkdir">选择结果保存目录</button>
+            <span id="workdirLabel" class="hint" data-i18n="workdirNotSelected">未选择，结果不会自动保存。</span>
+          </div>
         </div>
       </div>
 
@@ -676,6 +968,96 @@
     let localVideoFrameStore = new Map();
     let sequenceLightboxState = null;
     let workdirHandle = null;
+    let currentResultDirHandle = null;
+    let currentResultCapability = "";
+    let pose3DRenderSaveIndex = 0;
+    let localVideoSaveContext = null;
+    let lastInputFrames = [];
+    const savedLocale = localStorage.getItem("wAgentBrowserLocale");
+    let locale = savedLocale || ((navigator.language || "").toLowerCase().startsWith("en") ? "en-US" : "zh-CN");
+
+    const i18n = {
+      "zh-CN": {
+        navHome: "首页",
+        navCapabilities: "产品能力",
+        navAPI: "API 接入",
+        navAgentAccess: "Agent 接入",
+        walletRecharge: "余额与充值",
+        apiKeyManagement: "API Key 管理",
+        navPricing: "计费方式",
+        usageRecords: "使用记录",
+        navDemos: "Demo 下载",
+        localeLabel: "language",
+        login: "登录",
+        browserTitle: "W-Agent 浏览器客户端",
+        identityTrial: "免费试用",
+        identityRegistered: "注册用户",
+        getAPIKey: "获取 API Key",
+        capLocate: "图搜万物",
+        capSequence: "序列解析",
+        capGaitPose: "人体关节点",
+        capLocalVideo: "本地视频转序列",
+        promptPlaceholder: "猫、公交车、穿红衣服的人",
+        promptDisabled: "该能力不需要文字需求",
+        apiKeyPlaceholder: "API Key",
+        apiKeyTrialPlaceholder: "免费试用无需 API Key",
+        runButton: "开始调用",
+        jsonResult: "JSON 结果",
+        copy: "复制",
+        chooseWorkdir: "选择结果保存目录",
+        workdirNotSelected: "未选择，结果不会自动保存。",
+      },
+      "en-US": {
+        navHome: "Home",
+        navCapabilities: "Capabilities",
+        navAPI: "API",
+        navAgentAccess: "Agent",
+        walletRecharge: "Balance",
+        apiKeyManagement: "API Keys",
+        navPricing: "Pricing",
+        usageRecords: "Usage",
+        navDemos: "Demos",
+        localeLabel: "language",
+        login: "Sign in",
+        browserTitle: "W-Agent Browser Client",
+        identityTrial: "Free Trial",
+        identityRegistered: "Registered",
+        getAPIKey: "Get API Key",
+        capLocate: "Object Search",
+        capSequence: "Sequence Parsing",
+        capGaitPose: "2D/3D Pose",
+        capLocalVideo: "Local Video to Sequences",
+        promptPlaceholder: "cat, bus, person in red",
+        promptDisabled: "No prompt required",
+        apiKeyPlaceholder: "API Key",
+        apiKeyTrialPlaceholder: "No API Key for trial",
+        runButton: "Run",
+        jsonResult: "JSON Result",
+        copy: "Copy",
+        chooseWorkdir: "Choose result folder",
+        workdirNotSelected: "Not selected. Results will not be saved automatically.",
+      },
+    };
+
+    function t(key) {
+      return i18n[locale]?.[key] || i18n["zh-CN"][key] || key;
+    }
+
+    function applyLocale(nextLocale) {
+      locale = nextLocale === "en-US" ? "en-US" : "zh-CN";
+      localStorage.setItem("wAgentBrowserLocale", locale);
+      document.documentElement.lang = locale;
+      const select = $("localeSelect");
+      if (select) select.value = locale;
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        el.textContent = t(el.getAttribute("data-i18n"));
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+        el.setAttribute("placeholder", t(el.getAttribute("data-i18n-placeholder")));
+      });
+      document.title = t("browserTitle");
+      updateForm();
+    }
 
     function setStatus(message, isError = false) {
       $("status").textContent = message;
@@ -707,6 +1089,26 @@
       }[value] || "result";
     }
 
+    function jsonDisplayData(capability, data) {
+      if (capability !== "sequence") return data;
+      return stripSequenceFramesForDisplay(data);
+    }
+
+    function stripSequenceFramesForDisplay(value) {
+      if (Array.isArray(value)) return value.map(stripSequenceFramesForDisplay);
+      if (!value || typeof value !== "object") return value;
+      const out = {};
+      Object.entries(value).forEach(([key, item]) => {
+        if (key === "frames") return;
+        out[key] = stripSequenceFramesForDisplay(item);
+      });
+      return out;
+    }
+
+    function showJSONResult(capability, data) {
+      $("raw").textContent = JSON.stringify(jsonDisplayData(capability, data), null, 2);
+    }
+
     async function chooseWorkdir() {
       if (!window.showDirectoryPicker) {
         setStatus("当前浏览器不支持选择结果保存目录，请使用最新版 Chrome 或 Edge。", true);
@@ -736,39 +1138,228 @@
       await writable.close();
     }
 
+    async function canvasToBlob(canvas, mime = "image/jpeg", quality = 0.92) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("canvas export failed"));
+        }, mime, quality);
+      });
+    }
+
+    function frameAliases(frame, index) {
+      const aliases = new Set();
+      const add = (value) => {
+        if (value === undefined || value === null || value === "") return;
+        aliases.add(String(value));
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) aliases.add(String(numeric));
+      };
+      add(index);
+      add(index + 1);
+      add(frame?.index);
+      add(frame?.image_id);
+      add(frame?.imageId);
+      add(frame?.frame_id);
+      add(frame?.frameId);
+      add(frame?.filename);
+      add(frame?.name);
+      return aliases;
+    }
+
+    function frameIDFromValue(value) {
+      if (value === undefined || value === null || value === "") return "";
+      if (typeof value === "object") {
+        return frameIDFromValue(value.imageId ?? value.image_id ?? value.frame_id ?? value.frameId ?? value.index ?? value.filename ?? value.name);
+      }
+      return String(value);
+    }
+
+    function sequenceFrameIDs(seq) {
+      const ids = [];
+      const push = (value) => {
+        const id = frameIDFromValue(value);
+        if (id) ids.push(id);
+      };
+      const arrays = [
+        seq?.image_ids,
+        seq?.imageIds,
+        seq?.frame_ids,
+        seq?.frameIds,
+        seq?.image_id_list,
+        seq?.frames,
+        seq?.images,
+      ];
+      arrays.forEach((items) => {
+        if (!Array.isArray(items)) return;
+        items.forEach(push);
+      });
+      return Array.from(new Set(ids));
+    }
+
+    function framesForSequence(seq, sourceFrames) {
+      const frames = Array.isArray(sourceFrames) ? sourceFrames : [];
+      if (!frames.length) return [];
+      const ids = sequenceFrameIDs(seq);
+      if (!ids.length) return [];
+      const wanted = new Set(ids.map(String));
+      const matched = frames.filter((frame, index) => {
+        const aliases = frameAliases(frame, index);
+        for (const alias of aliases) {
+          if (wanted.has(alias)) return true;
+        }
+        return false;
+      });
+      return matched;
+    }
+
+    function outputSequencePayloads(data) {
+      return sequencePayloads(data).filter((seq) => seq && typeof seq === "object");
+    }
+
+    async function writeFrames(dirHandle, frames) {
+      const frameDir = await dirHandle.getDirectoryHandle("frames", { create: true });
+      for (let i = 0; i < frames.length; i += 1) {
+        const base64 = frames[i]?.content_base64;
+        if (!base64) continue;
+        const frameID = String(frames[i].frame_id || frames[i].image_id || frames[i].index + 1 || i + 1).padStart(6, "0");
+        await writeBlobFile(frameDir, `${safePathPart(frameID)}.jpg`, base64ToBlob(base64));
+      }
+    }
+
+    async function saveSequenceOutputs(rootDir, sequences, sourceFrames, startID = 1) {
+      const payloads = (Array.isArray(sequences) ? sequences : []).filter((seq) => seq && typeof seq === "object");
+      if (!payloads.length) return 0;
+      const sequencesDir = await rootDir.getDirectoryHandle("sequences", { create: true });
+      let saved = 0;
+      for (const seq of payloads) {
+        const displayID = startID + saved;
+        const sequenceDir = await sequencesDir.getDirectoryHandle(`ID_${String(displayID).padStart(4, "0")}`, { create: true });
+        await writeTextFile(sequenceDir, "result.json", JSON.stringify(seq, null, 2));
+        const frames = framesForSequence(seq, sourceFrames);
+        if (frames.length) await writeFrames(sequenceDir, frames);
+        saved += 1;
+      }
+      return saved;
+    }
+
+    async function beginLocalVideoSaveSession() {
+      if (!workdirHandle) return null;
+      const dirname = `w-agent-${capabilityName("localVideo")}-${timestampPart()}`;
+      const dir = await workdirHandle.getDirectoryHandle(dirname, { create: true });
+      currentResultDirHandle = dir;
+      currentResultCapability = "localVideo";
+      const sequencesDir = await dir.getDirectoryHandle("sequences", { create: true });
+      await writeTextFile(dir, "result.json", JSON.stringify({ local_video: { results: [] } }, null, 2));
+      return { dirname, dir, sequencesDir, savedID: 1, savedKeys: new Set() };
+    }
+
+    async function saveLocalVideoItemRealtime(context, item) {
+      if (!context || !item || item.status === "failed" || !item.result) return 0;
+      const key = sequenceKey(item.sequence_id);
+      if (context.savedKeys.has(key)) return 0;
+      const payloads = outputSequencePayloads(item.result);
+      if (!payloads.length) return 0;
+      const sourceFrames = localVideoFramesForItem(item);
+      const saved = await saveSequenceOutputs(context.dir, payloads, sourceFrames, context.savedID);
+      if (saved > 0) {
+        context.savedID += saved;
+        context.savedKeys.add(key);
+      }
+      return saved;
+    }
+
+    async function finishLocalVideoSaveSession(context, data) {
+      if (!context) return "";
+      await writeTextFile(context.dir, "result.json", JSON.stringify(data, null, 2));
+      return context.dirname;
+    }
+
+    function pose2DCanvasForFrame(image, data, frameIndex) {
+      const pose = data?.result?.pose_2ds || data?.pose_2ds || [];
+      const index = Math.min(Math.max(0, frameIndex || 0), Math.max(0, pose.length - 1));
+      const canvas = document.createElement("canvas");
+      const width = image.naturalWidth || image.width;
+      const height = image.naturalHeight || image.height;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0);
+      const points = posePoints2D(pose[index] || []);
+      const canvasPoints = points.map((point) => posePointToCanvas(point, width, height));
+      ctx.lineWidth = Math.max(2, Math.round(width / 380));
+      pose2DPairs.forEach(([a, b]) => {
+        const p1 = canvasPoints[a];
+        const p2 = canvasPoints[b];
+        if (!p1 || !p2 || p1.score <= 0.05 || p2.score <= 0.05) return;
+        ctx.strokeStyle = "#1f7a4d";
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      });
+      canvasPoints.forEach((point) => {
+        if (point.score <= 0.05) return;
+        ctx.fillStyle = "#ff3b30";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, Math.max(3, width / 180), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      return canvas;
+    }
+
+    async function appendPose3DRenderToWorkdir(rendered) {
+      if (!rendered?.blob || !currentResultDirHandle || currentResultCapability !== "gaitPose") return;
+      const pose3DDir = await currentResultDirHandle.getDirectoryHandle("pose_3d", { create: true });
+      pose3DRenderSaveIndex += 1;
+      const id = String(pose3DRenderSaveIndex).padStart(3, "0");
+      await writeBlobFile(pose3DDir, `render_${id}.webm`, rendered.blob);
+      await writeTextFile(pose3DDir, `render_${id}_params.json`, JSON.stringify({
+        fps: rendered.fps,
+        width: rendered.width,
+        height: rendered.height,
+        yaw_deg: rendered.yaw_deg,
+        pitch_deg: rendered.pitch_deg,
+        frames: rendered.frames,
+        mime_type: rendered.mime_type,
+        size: rendered.size,
+        saved_at: new Date().toISOString(),
+      }, null, 2));
+    }
+
     async function saveResultToWorkdir(capability, data) {
       if (!workdirHandle) return "";
       const dirname = `w-agent-${capabilityName(capability)}-${timestampPart()}`;
       const dir = await workdirHandle.getDirectoryHandle(dirname, { create: true });
+      currentResultDirHandle = dir;
+      currentResultCapability = capability;
+      pose3DRenderSaveIndex = 0;
       await writeTextFile(dir, "result.json", JSON.stringify(data, null, 2));
-      if (capability === "localVideo") {
-        const framesRoot = await dir.getDirectoryHandle("sequences", { create: true });
+      if (capability === "locate") {
+        const canvas = $("canvas");
+        if (canvas && canvas.width > 1 && canvas.height > 1) {
+          await writeBlobFile(dir, "boxed.jpg", await canvasToBlob(canvas));
+        }
+      } else if (capability === "gaitPose") {
+        const pose2Ds = data?.result?.pose_2ds || data?.pose_2ds || [];
+        if (poseViewerState?.images?.length && pose2Ds.length) {
+          const pose2DDir = await dir.getDirectoryHandle("pose_2d", { create: true });
+          const count = Math.min(poseViewerState.images.length, pose2Ds.length);
+          for (let i = 0; i < count; i += 1) {
+            const canvas = pose2DCanvasForFrame(poseViewerState.images[i], data, i);
+            await writeBlobFile(pose2DDir, `${String(i + 1).padStart(6, "0")}.jpg`, await canvasToBlob(canvas));
+          }
+        }
+        if (poseViewerState?.lastRendered3D) await appendPose3DRenderToWorkdir(poseViewerState.lastRendered3D);
+      } else if (capability === "sequence") {
+        await saveSequenceOutputs(dir, outputSequencePayloads(data), lastInputFrames, 1);
+      } else if (capability === "localVideo") {
         const results = localVideoComparableResults(data?.local_video || {});
-        for (let i = 0; i < results.length; i += 1) {
-          const item = results[i];
-          const image = localVideoPreviewBase64(item);
-          const seqName = safePathPart(`ID_${String(i + 1).padStart(4, "0")}`);
-          const sequenceDir = await framesRoot.getDirectoryHandle(seqName, { create: true });
-          await writeTextFile(sequenceDir, "result.json", JSON.stringify({
-            display_id: i + 1,
-            sequence_id: item.sequence_id || "",
-            track_id: item.track_id || "",
-            source_frames: item.source_frames || 0,
-            uploaded_frames: item.uploaded_frames || 0,
-            result: item.result || null,
-          }, null, 2));
-          if (image) {
-            await writeBlobFile(sequenceDir, "preview.jpg", base64ToBlob(image));
-          }
-          const frames = localVideoFramesForItem(item);
-          if (!frames.length) continue;
-          const frameDir = await sequenceDir.getDirectoryHandle("frames", { create: true });
-          for (let j = 0; j < frames.length; j += 1) {
-            const base64 = frames[j].content_base64;
-            if (!base64) continue;
-            const frameID = String(frames[j].frame_id || j + 1).padStart(6, "0");
-            await writeBlobFile(frameDir, `${frameID}.jpg`, base64ToBlob(base64));
-          }
+        let savedID = 1;
+        for (const item of results) {
+          const sourceFrames = localVideoFramesForItem(item);
+          const saved = await saveSequenceOutputs(dir, outputSequencePayloads(item.result), sourceFrames, savedID);
+          savedID += saved;
         }
       }
       return dirname;
@@ -784,9 +1375,23 @@
       $("resultAssets").innerHTML = "";
       $("previewPanel").classList.remove("pose-preview-mode");
       $("previewPanel").classList.remove("local-video-mode");
+      $("previewPanel").classList.remove("sequence-summary-mode");
       poseViewerState = null;
       localVideoViewState = { localVideo: null, page: 0, selected: [] };
       localVideoFrameStore = new Map();
+      currentResultDirHandle = null;
+      currentResultCapability = "";
+      localVideoSaveContext = null;
+      pose3DRenderSaveIndex = 0;
+    }
+
+    function clearPreviewCanvas() {
+      const canvas = $("canvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width || 1, canvas.height || 1);
+      canvas.width = 1;
+      canvas.height = 1;
     }
 
     function showPoseVideo(url, poseInfo, filename = "w-agent-3d-pose.webm") {
@@ -855,11 +1460,34 @@
       return Array.from($("files").files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     }
 
+    function updateSelectedFileName(files) {
+      const target = $("fileNameLabel");
+      if (!target) return;
+      const list = Array.from(files || []);
+      if (!list.length) {
+        target.textContent = "";
+        return;
+      }
+      if (locale === "en-US") {
+        target.textContent = list.length === 1 ? `${list[0].name} · 1 file` : `${list[0].name} · ${list.length} files total`;
+      } else {
+        target.textContent = list.length === 1 ? `${list[0].name} · 1 个文件` : `${list[0].name} · 共 ${list.length} 个文件`;
+      }
+    }
+
     async function loadFrames(files) {
       const frames = [];
       for (let i = 0; i < files.length; i += 1) {
         const dataURL = await readFileAsDataURL(files[i]);
-        frames.push({ index: i, content_base64: dataURLBase64(dataURL) });
+        frames.push({
+          index: i,
+          frame_id: i + 1,
+          image_id: i + 1,
+          imageId: i + 1,
+          filename: files[i].name,
+          name: files[i].name,
+          content_base64: dataURLBase64(dataURL),
+        });
       }
       return frames;
     }
@@ -869,16 +1497,19 @@
       const ctx = canvas.getContext("2d");
       const width = image.naturalWidth || image.videoWidth || image.width;
       const height = image.naturalHeight || image.videoHeight || image.height;
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(image, 0, 0);
-      ctx.lineWidth = Math.max(2, Math.round(width / 360));
-      ctx.font = Math.max(14, Math.round(width / 50)) + "px sans-serif";
+      const scale = Math.min(1280 / width, 720 / height, 1);
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = Math.max(2, Math.round(canvas.width / 360));
+      ctx.font = Math.max(14, Math.round(canvas.width / 50)) + "px sans-serif";
       boxes.forEach((box, index) => {
-        const x1 = Number(box.x1 ?? box.left ?? box[0] ?? 0);
-        const y1 = Number(box.y1 ?? box.top ?? box[1] ?? 0);
-        const x2 = Number(box.x2 ?? box.right ?? box[2] ?? (x1 + Number(box.width ?? 0)));
-        const y2 = Number(box.y2 ?? box.bottom ?? box[3] ?? (y1 + Number(box.height ?? 0)));
+        const x1 = Number(box.x1 ?? box.left ?? box[0] ?? 0) * scale;
+        const y1 = Number(box.y1 ?? box.top ?? box[1] ?? 0) * scale;
+        const rawX2 = Number(box.x2 ?? box.right ?? box[2] ?? ((Number(box.x1 ?? box.left ?? box[0] ?? 0)) + Number(box.width ?? 0)));
+        const rawY2 = Number(box.y2 ?? box.bottom ?? box[3] ?? ((Number(box.y1 ?? box.top ?? box[1] ?? 0)) + Number(box.height ?? 0)));
+        const x2 = rawX2 * scale;
+        const y2 = rawY2 * scale;
         const label = String(box.label || box.name || ("box " + (index + 1)));
         ctx.strokeStyle = "#ff3b30";
         ctx.fillStyle = "#ff3b30";
@@ -924,7 +1555,7 @@
       const canvas = $("canvas");
       const ctx = canvas.getContext("2d");
       canvas.width = 980;
-      canvas.height = 620;
+      canvas.height = 700;
       ctx.fillStyle = "#f8faf7";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#17212b";
@@ -944,19 +1575,67 @@
       ];
       ctx.font = "15px sans-serif";
       rows.forEach((row, index) => {
-        const y = 112 + index * 48;
+        const y = 112 + index * 46;
         ctx.fillStyle = "#667085";
         ctx.fillText(row[0], 44, y);
         ctx.fillStyle = "#17212b";
         ctx.fillText(String(row[1]), 210, y);
       });
       const attrs = seq.reid_attributes || [];
+      const attrsTitleY = 112 + rows.length * 46 + 18;
       ctx.fillStyle = "#17212b";
       ctx.font = "800 20px sans-serif";
-      ctx.fillText("结构化属性", 44, 560);
+      ctx.fillText("结构化属性", 44, attrsTitleY);
       ctx.fillStyle = "#667085";
       ctx.font = "14px sans-serif";
-      ctx.fillText(attrs.slice(0, 6).map((item) => `${item.category || item.name || ""}:${item.label || item.value || ""}`).join(" / ") || "无", 44, 590);
+      ctx.fillText(attrs.slice(0, 6).map((item) => `${item.category || item.name || ""}:${item.label || item.value || ""}`).join(" / ") || "无", 44, attrsTitleY + 30);
+    }
+
+    function renderSequenceSummary(data) {
+      const sequences = sequenceResultPayloads(data);
+      if (!sequences.length) {
+        $("previewPanel").classList.add("sequence-summary-mode");
+        $("resultAssets").className = "result-assets show";
+        $("resultAssets").innerHTML = `
+          <section class="sequence-summary-panel">
+            <h2>未提取到有效人员序列</h2>
+            <p class="hint">SDK 没有返回满足长度、质量或运动条件的人员序列。完整接口返回已保留在左侧 JSON 结果中。</p>
+          </section>
+        `;
+        return;
+      }
+      const seq = sequenceResultPayload(data);
+      const attrs = seq.reid_attributes || [];
+      const rows = [
+        ["Sequence ID", seq.sequence_id || data?.task_id || "-"],
+        ["Split Count", sequenceResultPayloads(data).length || 1],
+        ["Frame Count", seq.frame_count ?? (seq.frames || []).length ?? "-"],
+        ["Gait Feature", `${(seq.gait_feature || []).length} 维：${compactFeature(seq.gait_feature)}`],
+        ["Face Feature", `${(seq.face_feature || []).length} 维：${compactFeature(seq.face_feature)}`],
+        ["ReID Feature", `${(seq.reid_feature || []).length} 维：${compactFeature(seq.reid_feature)}`],
+        ["ReID Summary", seq.reid_summary || "-"],
+        ["Pose2D Frames", (seq.pose_2ds || []).length],
+        ["Pose3D Frames", (seq.pose_3ds || []).length],
+        ["Emotions", Array.isArray(seq.emotions) ? seq.emotions.join(", ") : "-"],
+      ];
+      const attrText = attrs.slice(0, 12)
+        .map((item) => `${item.category || item.name || ""}:${item.label || item.value || ""}`)
+        .filter(Boolean)
+        .join(" / ") || "无";
+      $("previewPanel").classList.add("sequence-summary-mode");
+      $("resultAssets").className = "result-assets show";
+      $("resultAssets").innerHTML = `
+        <section class="sequence-summary-panel">
+          <h2>序列解析结果</h2>
+          <dl class="sequence-summary-list">
+            ${rows.map(([label, value]) => `<dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd>`).join("")}
+          </dl>
+          <div class="sequence-summary-section">
+            <h3>结构化属性</h3>
+            <p>${escapeHTML(attrText)}</p>
+          </div>
+        </section>
+      `;
     }
 
     const DEFAULT_POSE_2D_PAIRS_TEXT = "0-1,0-2,1-3,2-4,5-7,7-9,6-8,8-10,5-6,5-11,6-12,11-13,13-15,12-14,14-16";
@@ -981,16 +1660,6 @@
       return points;
     }
 
-    function posePointRange(points) {
-      const valid = points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-      if (!valid.length) return "无有效 2D 点";
-      const maxX = Math.max(...valid.map((point) => point.x));
-      const maxY = Math.max(...valid.map((point) => point.y));
-      const minX = Math.min(...valid.map((point) => point.x));
-      const minY = Math.min(...valid.map((point) => point.y));
-      return `2D 点范围 x=${minX.toFixed(1)}..${maxX.toFixed(1)}, y=${minY.toFixed(1)}..${maxY.toFixed(1)}`;
-    }
-
     function posePointToCanvas(point, width, height) {
       return {
         x: width / 2 + point.x,
@@ -1007,7 +1676,6 @@
       const ctx = canvas.getContext("2d");
       const points = posePoints2D(pose[index] || []);
       const canvasPoints = points.map((point) => posePointToCanvas(point, canvas.width, canvas.height));
-      const range = posePointRange(points);
       ctx.lineWidth = Math.max(2, Math.round(canvas.width / 380));
       pose2DPairs.forEach(([a, b]) => {
         const p1 = canvasPoints[a];
@@ -1025,16 +1693,7 @@
         ctx.beginPath();
         ctx.arc(point.x, point.y, Math.max(3, canvas.width / 180), 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "#101820";
-        ctx.font = Math.max(12, Math.round(canvas.width / 90)) + "px sans-serif";
-        ctx.fillText(String(canvasPoints.indexOf(point)), point.x + 6, point.y - 6);
       });
-      ctx.fillStyle = "rgba(16, 24, 32, 0.72)";
-      ctx.fillRect(12, 12, Math.min(canvas.width - 24, 560), 58);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = Math.max(13, Math.round(canvas.width / 70)) + "px sans-serif";
-      ctx.fillText(`2D 关节点：第 ${index + 1} / ${pose.length} 帧，${points.length} 点`, 28, 36);
-      ctx.fillText(`${range}，原点=图像中心，图像 ${canvas.width}x${canvas.height}`, 28, 58);
     }
 
     async function loadPoseImages(files) {
@@ -1377,6 +2036,7 @@
       const blob = new Blob(chunks, { type: "video/webm" });
       return {
         url: URL.createObjectURL(blob),
+        blob,
         frames: frames.length,
         size: blob.size,
         mime_type: blob.type,
@@ -1398,8 +2058,10 @@
         const rendered = await renderPose3DVideoInBrowser(poseViewerState.data, pose3DRenderOptions());
         if (poseViewerState.videoURL) URL.revokeObjectURL(poseViewerState.videoURL);
         poseViewerState.videoURL = rendered?.url || "";
+        poseViewerState.lastRendered3D = rendered || null;
         if (rendered?.url) {
           showPoseVideo(rendered.url, `3D ${rendered.frames} 帧 / ${rendered.fps} FPS / ${rendered.width}x${rendered.height} / 水平 ${rendered.yaw_deg}° / 俯仰 ${rendered.pitch_deg}°，本地生成 WebM，大小 ${(rendered.size / 1024).toFixed(1)} KB。`);
+          await appendPose3DRenderToWorkdir(rendered);
         } else if (slot) {
           slot.innerHTML = `<p class="hint">接口返回中没有可渲染的 3D 关节点。</p>`;
         }
@@ -1502,15 +2164,7 @@
     function localVideoFramesForResult(result, fallbackFrames) {
       const sourceFrames = Array.isArray(fallbackFrames) ? fallbackFrames : [];
       if (!sourceFrames.length) return [];
-      const resultFrames = Array.isArray(result?.frames) ? result.frames : [];
-      const frameIDs = new Set();
-      for (const frame of resultFrames) {
-        const value = Number(frame?.frame_id);
-        if (Number.isFinite(value)) frameIDs.add(value);
-      }
-      if (!frameIDs.size) return sourceFrames;
-      const subset = sourceFrames.filter((frame) => frameIDs.has(Number(frame?.frame_id)));
-      return subset.length ? subset : sourceFrames;
+      return framesForSequence(result, sourceFrames);
     }
 
     function localVideoFramesForItem(item) {
@@ -1523,10 +2177,11 @@
 
     function localVideoPreviewBase64(item) {
       if (!item) return "";
-      return item.preview_base64
-        || item?.result?.sequence?.gait_images?.[0]
+      const frames = localVideoFramesForItem(item);
+      const previewFrame = frames[Math.floor(Math.max(0, frames.length - 1) / 2)] || frames[0];
+      return item?.result?.sequence?.gait_images?.[0]
         || item?.result?.result?.gait_images?.[0]
-        || localVideoFramesForItem(item)[0]?.content_base64
+        || previewFrame?.content_base64
         || "";
     }
 
@@ -1590,7 +2245,8 @@
       const displayID = index + 1;
       const selected = localVideoViewState.selected.includes(sequenceID);
       const image = localVideoPreviewBase64(item);
-      const frameCount = Number(item.uploaded_frames || item.source_frames || 0);
+      const frames = localVideoFramesForItem(item);
+      const frameCount = Number(item.result?.frame_count ?? frames.length ?? 0);
       const sequenceIDArg = jsString(sequenceID);
       return `
         <div class="sequence-card ${selected ? "selected" : ""}" data-sequence-id="${escapeHTML(sequenceID)}">
@@ -1690,16 +2346,16 @@
     function updateForm() {
       const identity = $("identity").value;
       const capability = $("capability").value;
-      $("apiKeyRow").style.display = identity === "registered" ? "grid" : "none";
-      $("promptRow").style.display = capability === "locate" ? "grid" : "none";
-      $("fileLabel").textContent = "";
+      $("apiKey").disabled = identity !== "registered";
+      $("apiKey").placeholder = identity === "registered" ? t("apiKeyPlaceholder") : t("apiKeyTrialPlaceholder");
+      $("apiKeyRow").classList.toggle("disabled-field", identity !== "registered");
+      $("prompt").disabled = capability !== "locate";
+      $("prompt").placeholder = capability === "locate" ? t("promptPlaceholder") : t("promptDisabled");
+      $("promptRow").classList.toggle("disabled-field", capability !== "locate");
       $("files").accept = capability === "localVideo" ? "video/*" : "image/*";
       $("files").multiple = capability !== "locate" && capability !== "localVideo";
-      $("hint").textContent = capability === "locate"
-        ? "图搜万物请选择一张图片。"
-        : (capability === "localVideo"
-          ? ""
-          : "请选择同一个人从出现到消失的序列图片，浏览器按文件名排序后上传。");
+      $("hint").textContent = "";
+      updateSelectedFileName($("files").files);
     }
 
     function apiErrorMessage(status, data) {
@@ -1707,7 +2363,7 @@
       const code = String(error.code || "");
       const message = String(error.message || "");
       if (code === "trial_limit_exceeded" || status === 429) {
-        return "免注册试用次数或帧数已用完，请登录/注册后创建 API Key 继续使用。";
+        return "免注册试用额度已用完，请登录/注册后创建 API Key 继续使用。";
       }
       if (code === "wallet_insufficient_balance") {
         return "账户余额不足，请进入用户中心充值或购买包月套餐。";
@@ -1836,9 +2492,22 @@
       return sequencePayloads(apiResult)[0] || {};
     }
 
+    function isSequencePayload(value) {
+      if (!value || typeof value !== "object") return false;
+      return Array.isArray(value.gait_feature)
+        || Array.isArray(value.reid_feature)
+        || Array.isArray(value.face_feature)
+        || Array.isArray(value.frames)
+        || Array.isArray(value.pose_2ds)
+        || Array.isArray(value.pose_3ds)
+        || typeof value.sequence_id === "string";
+    }
+
     function sequencePayloads(apiResult) {
       if (Array.isArray(apiResult?.sequences)) return apiResult.sequences;
       if (Array.isArray(apiResult?.result?.sequences)) return apiResult.result.sequences;
+      if (isSequencePayload(apiResult)) return [apiResult];
+      if (isSequencePayload(apiResult?.result)) return [apiResult.result];
       const single = apiResult?.sequence || apiResult?.result?.sequence || apiResult?.result;
       return single ? [single] : [];
     }
@@ -1909,7 +2578,6 @@
                 track_id: item.seq.track_id,
                 source_frames: item.seq.source_frames,
                 uploaded_frames: item.seq.uploaded_frames,
-                preview_base64: item.seq.frames?.[0]?.content_base64 || "",
                 status: "failed",
                 error: error.message || String(error),
               };
@@ -1956,6 +2624,7 @@
 
     $("identity").addEventListener("change", updateForm);
     $("capability").addEventListener("change", updateForm);
+    $("localeSelect").addEventListener("change", (event) => applyLocale(event.target.value));
     $("apiKeyLink").addEventListener("click", openAPIKeyPage);
     $("copyJSONButton").addEventListener("click", copyJSONResult);
     $("chooseWorkdirButton").addEventListener("click", () => {
@@ -1992,18 +2661,22 @@
     });
     $("files").addEventListener("change", async () => {
       const files = sortedFiles();
+      updateSelectedFileName(files);
       if (!files.length) return;
       try {
         clearAction();
         clearResultAssets();
         setRuntimeInfo("");
-        if ($("capability").value === "localVideo") {
+        const capability = $("capability").value;
+        if (capability === "localVideo") {
           await previewVideo(files[0]);
           loadedImage = null;
-        } else {
+        } else if (capability === "locate") {
           const dataURL = await readFileAsDataURL(files[0]);
           loadedImage = await loadImage(dataURL);
           draw(loadedImage, []);
+        } else {
+          loadedImage = null;
         }
         setStatus("输入已加载，可以开始调用。");
       } catch (error) {
@@ -2037,6 +2710,7 @@
         if (capability === "locate") {
           const firstDataURL = await readFileAsDataURL(files[0]);
           loadedImage = loadedImage || await loadImage(firstDataURL);
+          draw(loadedImage, []);
           const prompt = $("prompt").value.trim();
           if (!prompt) throw new Error("请填写文字需求。");
           const path = identity === "trial" ? "/v1/public/object-search/trial" : "/v1/object-search";
@@ -2046,9 +2720,11 @@
             fingerprint: browserFingerprint(),
           }, identity === "registered" ? apiKey : "");
         } else if (capability === "localVideo") {
+          clearPreviewCanvas();
           if (!window.WAgentPersonDet) {
             throw new Error("浏览器版 persondet 未加载完整，请重新下载最新 HTML。");
           }
+          localVideoSaveContext = await beginLocalVideoSaveSession();
           setStatus("视频解析进度：0/未知帧");
           const liveLocalVideo = {
             boxes: [],
@@ -2067,8 +2743,7 @@
               source_sequence_id: seq.sequence_id,
               track_id: seq.track_id,
               source_frames: seq.source_frames,
-              uploaded_frames: split.frame_count || seq.uploaded_frames,
-              preview_base64: localVideoFramesForResult(split, seq.frames)[0]?.content_base64 || seq.frames?.[0]?.content_base64 || "",
+              uploaded_frames: split.frame_count ?? (Array.isArray(split.frames) ? split.frames.length : 0),
               result: split,
               result_response: result,
               split_index: splitIndex + 1,
@@ -2078,6 +2753,9 @@
             $("raw").textContent = JSON.stringify({ local_video: liveLocalVideo }, null, 2);
             if (item && item.status !== "failed") {
               renderLocalVideoResults(liveLocalVideo, localVideoViewState.page);
+              saveLocalVideoItemRealtime(localVideoSaveContext, item).catch((error) => {
+                setStatus(`序列实时保存失败：${error.message || error}`, true);
+              });
             }
           });
           const extracted = await window.WAgentPersonDet.extractLocalVideoSequence(files[0], {
@@ -2107,17 +2785,21 @@
           completionMessage = `视频序列解析完成：成功 ${successCount} 个，失败 ${failedCount} 个。`;
           setStatus(completionMessage);
         } else {
+          clearPreviewCanvas();
           const firstDataURL = await readFileAsDataURL(files[0]);
-          loadedImage = loadedImage || await loadImage(firstDataURL);
+          if (capability === "gaitPose" || !loadedImage) {
+            loadedImage = await loadImage(firstDataURL);
+          }
           const frames = await loadFrames(files);
+          lastInputFrames = frames;
           data = await runSequenceByIdentity(capability, frames, identity, apiKey);
         }
-        $("raw").textContent = JSON.stringify(data, null, 2);
+        showJSONResult(capability, data);
         const boxes = capability === "localVideo" ? (data.local_video?.boxes || []) : extractBoxes(data);
         if (capability === "localVideo") {
           renderLocalVideoResults(data.local_video || {});
         } else if (capability === "sequence") {
-          drawSequenceSummary(data);
+          renderSequenceSummary(data);
         } else if (capability === "gaitPose" && loadedImage) {
           await setupPoseViewer(files, data);
           setStatus("关节点调用完成，正在浏览器本地生成 3D 视频...");
@@ -2130,6 +2812,7 @@
           if (rendered?.url) {
             const pose2Ds = data?.result?.pose_2ds || data?.pose_2ds || [];
             if (poseViewerState) poseViewerState.videoURL = rendered.url;
+            if (poseViewerState) poseViewerState.lastRendered3D = rendered;
             showPoseVideo(rendered.url, `2D ${pose2Ds.length} 帧 / 3D ${rendered.frames} 帧 / ${rendered.fps} FPS / ${rendered.width}x${rendered.height}，本地生成 WebM，大小 ${(rendered.size / 1024).toFixed(1)} KB。`);
           } else {
             const slot = $("poseVideoSlot");
@@ -2140,7 +2823,9 @@
         }
         if (workdirHandle) {
           try {
-            const dirname = await saveResultToWorkdir(capability, data);
+            const dirname = capability === "localVideo"
+              ? await finishLocalVideoSaveSession(localVideoSaveContext, data)
+              : await saveResultToWorkdir(capability, data);
             setStatus(dirname ? `${completionMessage} 结果已保存到结果保存目录：${dirname}` : completionMessage);
           } catch (saveError) {
             setStatus(`调用完成，但保存到结果保存目录失败：${saveError.message || saveError}`, true);
@@ -2165,7 +2850,7 @@
       $("workdirLabel").textContent = "当前浏览器不支持自动保存结果保存目录。";
     }
 
-    updateForm();
+    applyLocale(locale);
   </script>
 </body>
 </html>

@@ -43,11 +43,16 @@ def sigmoid(x: np.ndarray) -> np.ndarray:
 
 
 def resize_for_detector(image: np.ndarray, resize_width: int):
-    if resize_width <= 0 or image.shape[1] == resize_width:
-        return image, 1.0, 1.0
     h, w = image.shape[:2]
-    rh = round_to_multiple(h * resize_width / w, 32)
-    resized = cv2.resize(image, (resize_width, rh), interpolation=cv2.INTER_LINEAR)
+    if resize_width <= 0 or max(w, h) <= resize_width:
+        return image, 1.0, 1.0
+    if w >= h:
+        rw = resize_width
+        rh = round_to_multiple(h * rw / w, 32)
+    else:
+        rh = resize_width
+        rw = round_to_multiple(w * rh / h, 32)
+    resized = cv2.resize(image, (rw, rh), interpolation=cv2.INTER_LINEAR)
     return resized, w / resized.shape[1], h / resized.shape[0]
 
 

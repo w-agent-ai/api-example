@@ -550,8 +550,17 @@
     reportProgress({ stage: "sampling", fps, jump, effective_fps: fps / jump });
     const rawW = video.videoWidth;
     const rawH = video.videoHeight;
-    const detW = cfg.resizeWidth > 0 ? Math.min(cfg.resizeWidth, rawW) : rawW;
-    const detH = roundToMultiple(rawH * detW / rawW, 32);
+    let detW = rawW;
+    let detH = rawH;
+    if (cfg.resizeWidth > 0 && Math.max(rawW, rawH) > cfg.resizeWidth) {
+      if (rawW >= rawH) {
+        detW = cfg.resizeWidth;
+        detH = roundToMultiple(rawH * detW / rawW, 32);
+      } else {
+        detH = cfg.resizeWidth;
+        detW = roundToMultiple(rawW * detH / rawH, 32);
+      }
+    }
     const detCanvas = document.createElement("canvas");
     detCanvas.width = detW;
     detCanvas.height = detH;

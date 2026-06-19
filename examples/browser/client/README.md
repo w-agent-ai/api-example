@@ -16,6 +16,11 @@ Current browser capabilities:
   runs lightweight `persondet`, tracks people with IoU matching, crops all valid
   sequences, and uploads each sequence to the Sequence API.
 
+图搜万物 uses the same prompt examples as the public home page:
+`猫、公交车、穿红衣服的人` in Chinese and `cat, bus, person in red` in English.
+For one selected 图搜万物 image, the file picker shows only the filename; for
+multi-file capabilities it shows the first filename and the total file count.
+
 Files:
 
 - `index.html`: UI and API calls.

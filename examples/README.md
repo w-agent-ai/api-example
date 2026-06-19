@@ -13,7 +13,7 @@ parallel:
 
 - `registered/`: registered users who call APIs with an API Key.
 - `anonymous/`: anonymous agents who call public APIs with x402 payment.
-- `trial/`: no-registration trial demos limited by server-side IP/fingerprint quota.
+- `trial/`: no-registration browser trial demos limited by server-side IP quota.
 - `browser/`: browser clients. Browser is a usage method and can call trial or
   registered-user APIs.
 - `registered/python/local_video_to_sequence_demo/`: Python local video-to-sequence
@@ -26,8 +26,6 @@ parallel:
 - `anonymous/python/local_video_to_sequence_demo/`: Python local video-to-sequence
   demo for anonymous x402 calls.
 - `browser/client/`: pure browser client for trial and registered calls.
-- `trial/python/`: Python no-registration trial client for 图搜万物,
-  sequence parsing, and Gait Pose.
 
 ## Registered User
 
