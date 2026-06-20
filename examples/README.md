@@ -229,7 +229,7 @@ For a compact local-folder-to-CSV identity comparison:
 python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
 ```
 
-图搜万物最小可运行示例：
+Minimal Object Search runnable example:
 
 ```bash
 python3 examples/registered/python/object_search_api_demo.py examples/sample_sequences/ID_0001/001811.jpg 'person'
