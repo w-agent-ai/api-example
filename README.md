@@ -25,9 +25,11 @@ documented.
 Machine-readable API docs:
 
 ```text
-https://www.h-agent.ai/openapi.json
-https://www.h-agent.ai/.well-known/w-agent.md
-https://www.h-agent.ai/.well-known/ai-plugin.json
+Mainland China OpenAPI: https://www.w-agent.cn/api/openapi.json
+Mainland China agent markdown: https://www.w-agent.cn/api/.well-known/w-agent.md
+Global OpenAPI: https://www.h-agent.ai/openapi.json
+Global agent markdown: https://www.h-agent.ai/.well-known/w-agent.md
+Global plugin manifest: https://www.h-agent.ai/.well-known/ai-plugin.json
 ```
 
 MCP endpoint:

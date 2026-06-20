@@ -28,23 +28,17 @@ Current provider support:
 - `x402`: implemented and used for production anonymous public calls when configured
 - `ap2`: reserved for later
 
-## Architecture
+## API Workflow Model
 
-The service is split into these runtime components:
+For API callers, W-Agent has three main workflows:
 
-- API service: authentication, upload negotiation, task lifecycle, billing, payment handling, result delivery
-- GPU worker: isolated process calling the gait SDK
-- Object storage: input videos, input sequence frames, result JSON, gait images, face images
-- PostgreSQL: tasks, billing, payments, users, policies, audit events
-- Scheduler and cleanup worker: timeout transitions and object deletion
+- Sequence workflow: create a sequence task, upload ordered person frames to the returned upload URLs, then call `/parse` for identity features or `/gait-pose` for keypoints.
+- Video workflow: create a video task, upload the video, complete the upload, poll status, then fetch the result after processing succeeds.
+- Object Search workflow: send one image plus a text prompt and read returned bounding boxes.
 
-The SDK should not run inside the public HTTP process.
-
-Current MVP runtime notes:
-
-- video tasks are persisted on disk and maintained by the worker tick
-- sequence tasks are persisted on disk and recovered on API restart
-- payment receipt replay files are cleaned by the same retention maintenance
+The implementation details behind task storage, workers, and cleanup are not
+required for normal API integration. Focus on the task state, returned upload
+URLs, `object_key` values, and final JSON response shapes.
 
 ## Authentication
 
@@ -254,7 +248,7 @@ output/
 3. Client uploads the video with `PUT /v1/video-uploads/{task_id}?token=...`.
 4. Service extracts video metadata and creates phase 1 billing.
 5. Registered users are auto-debited from wallet; public tasks wait for explicit payment settlement.
-6. GPU worker parses the video.
+6. Service processes the video asynchronously.
 7. Service stores result summary and creates phase 2 billing.
 8. After phase 2 payment, the full result JSON is returned.
 9. Media and results are deleted after retention expires.
@@ -498,7 +492,6 @@ Runtime behavior:
 - when `expire_at` is reached, task status becomes `expired`
 - when `delete_after_at` is reached for `succeeded` or `failed`, artifacts are removed and task status becomes `deleted`
 - deleted task records are retained until `deleted_record_ttl` and then removed
-- payment receipt replay files older than `deleted_record_ttl` are removed automatically
 
 ## Billing Model
 
