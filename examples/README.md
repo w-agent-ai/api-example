@@ -169,13 +169,13 @@ Recommended output shape for agents:
 ```text
 output/
   video_name/
-    sequence_001/
-      frame_0001.jpg
-      frame_0002.jpg
-      meta.txt
-      result.json
-      pose_2d.csv
-      pose_3d.csv
+    sequence_xxx/
+      frame_000001.jpg
+      frame_000002.jpg
+      meta.txt              # crop/frame mapping from local preprocessing
+      result.json           # sequence parse or gait-pose API response
+      pose_2d.csv           # optional, for gait-pose output
+      pose_3d.csv           # optional, for gait-pose output
     summary.csv
 ```
 

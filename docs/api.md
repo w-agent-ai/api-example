@@ -239,6 +239,21 @@ Sequence input requirements for identity and pose APIs:
 - If one track mixes multiple people, the backend may split it into multiple clean output sequences or drop ambiguous frames.
 - If images are crops and you need original-video coordinates later, keep local metadata such as `crop_x`, `crop_y`, `crop_w`, and `crop_h`.
 
+Recommended local demo output shape:
+
+```text
+output/
+  video_name/
+    sequence_xxx/
+      frame_000001.jpg
+      frame_000002.jpg
+      meta.txt              # crop/frame mapping from local preprocessing
+      result.json           # sequence parse or gait-pose API response
+      pose_2d.csv           # optional, for gait-pose output
+      pose_3d.csv           # optional, for gait-pose output
+    summary.csv
+```
+
 ## Task Types
 
 - `video`
