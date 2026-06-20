@@ -16,13 +16,13 @@ import (
 
 const (
 	// Public API endpoint. Change this to your own deployment if needed.
-	defaultBaseURL = "http://116.198.210.0:3005"
+	defaultBaseURL = "https://www.w-agent.cn/api"
 
 	// Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 	defaultAPIKey = ""
 
 	// A sequence is a directory of cropped person images belonging to one track.
-	defaultSeqDir = "../../../seqs/nonuser/day_cl01/40-day_cl01-22949/imgs"
+	defaultSeqDir = "../../../sample_sequences/ID_0001"
 	timeout       = 10 * time.Minute
 
 	// When comparing two parsed sequences, compute face/gait/ReID dot products
@@ -66,7 +66,7 @@ type sequenceResult struct {
 }
 
 // gaitPoseResult is returned by POST /v1/sequences/{task_id}/gait-pose.
-// It is billed separately from full sequence parsing and only returns pose data.
+// It is billed separately from full gait sequence parsing and only returns pose data.
 type gaitPoseResult struct {
 	SequenceID string      `json:"sequence_id"`
 	FrameCount int         `json:"frame_count"`
@@ -109,7 +109,7 @@ func main() {
 	}
 
 	// Step 4: call the standalone Gait Pose API. This is a separate billable
-	// operation from full sequence parsing and returns only pose outputs.
+	// operation from full gait sequence parsing and returns only pose outputs.
 	must(doJSON(client, apiKey, http.MethodPost, "/v1/sequences/"+created.TaskID+"/gait-pose", map[string]any{"frames": parseFrames}, &gaitPose))
 
 	var parsed struct {
@@ -119,7 +119,7 @@ func main() {
 		Sequences     []sequenceResult `json:"sequences"`
 	}
 
-	// Step 5: start synchronous sequence parsing. Registered users are billed
+	// Step 5: start synchronous gait sequence parsing. Registered users are billed
 	// from their account balance by the server.
 	must(doJSON(client, apiKey, http.MethodPost, "/v1/sequences/"+created.TaskID+"/parse", map[string]any{"frames": parseFrames}, &parsed))
 

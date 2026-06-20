@@ -34,14 +34,14 @@ ROOT = Path(__file__).resolve().parents[3]
 # in this registered-user flow.
 USER_EMAIL = os.environ.get("GAIT_REGISTERED_EMAIL", "user@example.com")
 API_KEY = ""
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "http://116.198.210.0:3005")
+BASE_URL = os.environ.get("GAIT_API_BASE_URL", "https://www.w-agent.cn/api")
 
 # Sequence input:
-#   examples/seqs may contain nested folders.
+#   examples/sample_sequences contains small bundled sequence folders.
 #   Each leaf folder that directly contains images is treated as one sequence.
 # Video input:
 #   examples/video is scanned recursively for common video file extensions.
-SEQ_ROOT = ROOT / "examples" / "seqs"
+SEQ_ROOT = ROOT / "examples" / "sample_sequences"
 VIDEO_ROOT = ROOT / "examples" / "video"
 
 # All raw API responses and derived similarity reports are written here.
@@ -197,7 +197,7 @@ def run_registered_sequence(session: requests.Session, headers: dict[str, str], 
         json_payload={"frames": parse_frames},
     )
 
-    # Registered sequence parsing returns synchronously after SDK processing and
+    # Registered gait sequence parsing returns synchronously after SDK processing and
     # account-balance billing are complete. One uploaded track can produce
     # multiple single-person results in "sequences".
     parsed = request_json(

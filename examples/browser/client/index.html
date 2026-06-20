@@ -202,9 +202,30 @@
     .file-picker-wrap {
       position: relative;
       min-width: 0;
+      display: block;
     }
     .file-picker-wrap input[type="file"] {
-      display: block;
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .file-button-label {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      height: 46px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f7f9fc;
+      color: var(--ink);
+      font-size: 14px;
+      white-space: nowrap;
+      box-sizing: border-box;
     }
     .file-name-label {
       position: absolute;
@@ -853,15 +874,15 @@
 <body>
   <header class="site-header">
     <nav class="site-nav" aria-label="W-Agent navigation">
-      <a href="/portal" target="_blank" rel="noopener" data-i18n="navHome">首页</a>
-      <a href="/portal#capabilities" target="_blank" rel="noopener" data-i18n="navCapabilities">产品能力</a>
-      <a href="/portal#api" target="_blank" rel="noopener" data-i18n="navAPI">API 接入</a>
-      <a href="/portal#agentAccess" target="_blank" rel="noopener" data-i18n="navAgentAccess">Agent 接入</a>
-      <a href="/portal#walletSection" target="_blank" rel="noopener" data-i18n="walletRecharge">余额与充值</a>
-      <a href="/portal#apiKeySection" target="_blank" rel="noopener" data-i18n="apiKeyManagement">API Key 管理</a>
-      <a href="/portal#pricing" target="_blank" rel="noopener" data-i18n="navPricing">计费方式</a>
-      <a href="/portal#usageSection" target="_blank" rel="noopener" data-i18n="usageRecords">使用记录</a>
-      <a href="/portal#demos" target="_blank" rel="noopener" data-i18n="navDemos">Demo 下载</a>
+      <a href="https://www.w-agent.cn/portal" target="_blank" rel="noopener" data-i18n="navHome">首页</a>
+      <a href="https://www.w-agent.cn/portal#capabilities" target="_blank" rel="noopener" data-i18n="navCapabilities">产品能力</a>
+      <a href="https://www.w-agent.cn/portal#api" target="_blank" rel="noopener" data-i18n="navAPI">API 接入</a>
+      <a href="https://www.w-agent.cn/portal#agentAccess" target="_blank" rel="noopener" data-i18n="navAgentAccess">Agent 接入</a>
+      <a href="https://www.w-agent.cn/portal#walletSection" target="_blank" rel="noopener" data-i18n="walletRecharge">余额与充值</a>
+      <a href="https://www.w-agent.cn/portal#apiKeySection" target="_blank" rel="noopener" data-i18n="apiKeyManagement">API Key 管理</a>
+      <a href="https://www.w-agent.cn/portal#pricing" target="_blank" rel="noopener" data-i18n="navPricing">计费方式</a>
+      <a href="https://www.w-agent.cn/portal#usageSection" target="_blank" rel="noopener" data-i18n="usageRecords">使用记录</a>
+      <a href="https://www.w-agent.cn/portal#demos" target="_blank" rel="noopener" data-i18n="navDemos">Demo 下载</a>
     </nav>
     <div class="site-actions">
       <label class="locale-inline">
@@ -871,7 +892,7 @@
           <option value="en-US">English</option>
         </select>
       </label>
-      <a class="login-link" href="/portal#login" target="_blank" rel="noopener" data-i18n="login">登录</a>
+      <a class="login-link" href="https://www.w-agent.cn/portal#login" target="_blank" rel="noopener" data-i18n="login">登录</a>
     </div>
   </header>
   <main>
@@ -895,7 +916,7 @@
       <label id="capabilityRow">
         <select id="capability">
           <option value="locate" data-i18n="capLocate">图搜万物</option>
-          <option value="sequence" data-i18n="capSequence">序列解析</option>
+          <option value="sequence" data-i18n="capSequence">解析步态序列</option>
           <option value="gaitPose" data-i18n="capGaitPose">人体关节点</option>
           <option value="localVideo" data-i18n="capLocalVideo">本地视频转序列</option>
         </select>
@@ -904,6 +925,7 @@
       <label>
         <span class="file-picker-wrap">
           <input id="files" type="file" accept="image/*" multiple>
+          <span id="fileButtonLabel" class="file-button-label" data-i18n="uploadImage">上传图片</span>
           <span id="fileNameLabel" class="file-name-label"></span>
         </span>
         <span class="hint inline-under" id="hint"></span>
@@ -994,9 +1016,12 @@
         identityRegistered: "注册用户",
         getAPIKey: "获取 API Key",
         capLocate: "图搜万物",
-        capSequence: "序列解析",
+        capSequence: "解析步态序列",
         capGaitPose: "人体关节点",
         capLocalVideo: "本地视频转序列",
+        uploadImage: "上传图片",
+        uploadSequenceFrames: "上传序列图片",
+        uploadVideo: "上传视频",
         promptPlaceholder: "猫、公交车、穿红衣服的人",
         promptDisabled: "该能力不需要文字需求",
         apiKeyPlaceholder: "API Key",
@@ -1024,9 +1049,12 @@
         identityRegistered: "Registered",
         getAPIKey: "Get API Key",
         capLocate: "Object Search",
-        capSequence: "Sequence Parsing",
+        capSequence: "Parse Gait Sequence",
         capGaitPose: "2D/3D Pose",
         capLocalVideo: "Local Video to Sequences",
+        uploadImage: "Upload image",
+        uploadSequenceFrames: "Upload sequence frames",
+        uploadVideo: "Upload video",
         promptPlaceholder: "cat, bus, person in red",
         promptDisabled: "No prompt required",
         apiKeyPlaceholder: "API Key",
@@ -1243,6 +1271,28 @@
       return saved;
     }
 
+    async function saveLocalVideoDisplayItem(rootDir, item, displayID) {
+      if (!rootDir || !item || item.status === "failed" || !item.result) return 0;
+      const id = Number(displayID || item.display_id || 0);
+      if (!Number.isFinite(id) || id <= 0) return 0;
+      const sequencesDir = await rootDir.getDirectoryHandle("sequences", { create: true });
+      const sequenceDir = await sequencesDir.getDirectoryHandle(`ID_${String(id).padStart(4, "0")}`, { create: true });
+      const payloads = outputSequencePayloads(item.result);
+      const resultPayload = payloads.length === 1 ? { ...payloads[0], display_id: id } : {
+        display_id: id,
+        sequence_id: item.sequence_id || "",
+        source_sequence_id: item.source_sequence_id || "",
+        track_id: item.track_id || "",
+        source_frames: item.source_frames || 0,
+        uploaded_frames: item.uploaded_frames || 0,
+        result: item.result,
+      };
+      await writeTextFile(sequenceDir, "result.json", JSON.stringify(resultPayload, null, 2));
+      const frames = localVideoFramesForItem(item);
+      if (frames.length) await writeFrames(sequenceDir, frames);
+      return 1;
+    }
+
     async function beginLocalVideoSaveSession() {
       if (!workdirHandle) return null;
       const dirname = `w-agent-${capabilityName("localVideo")}-${timestampPart()}`;
@@ -1251,20 +1301,18 @@
       currentResultCapability = "localVideo";
       const sequencesDir = await dir.getDirectoryHandle("sequences", { create: true });
       await writeTextFile(dir, "result.json", JSON.stringify({ local_video: { results: [] } }, null, 2));
-      return { dirname, dir, sequencesDir, savedID: 1, savedKeys: new Set() };
+      return { dirname, dir, sequencesDir, savedItems: new Set() };
     }
 
-    async function saveLocalVideoItemRealtime(context, item) {
+    async function saveLocalVideoItemRealtime(context, item, displayID) {
       if (!context || !item || item.status === "failed" || !item.result) return 0;
-      const key = sequenceKey(item.sequence_id);
-      if (context.savedKeys.has(key)) return 0;
-      const payloads = outputSequencePayloads(item.result);
-      if (!payloads.length) return 0;
-      const sourceFrames = localVideoFramesForItem(item);
-      const saved = await saveSequenceOutputs(context.dir, payloads, sourceFrames, context.savedID);
+      const id = Number(displayID || item.display_id || 0);
+      if (!Number.isFinite(id) || id <= 0) return 0;
+      const key = String(id);
+      if (context.savedItems.has(key)) return 0;
+      const saved = await saveLocalVideoDisplayItem(context.dir, item, id);
       if (saved > 0) {
-        context.savedID += saved;
-        context.savedKeys.add(key);
+        context.savedItems.add(key);
       }
       return saved;
     }
@@ -1355,11 +1403,8 @@
         await saveSequenceOutputs(dir, outputSequencePayloads(data), lastInputFrames, 1);
       } else if (capability === "localVideo") {
         const results = localVideoComparableResults(data?.local_video || {});
-        let savedID = 1;
-        for (const item of results) {
-          const sourceFrames = localVideoFramesForItem(item);
-          const saved = await saveSequenceOutputs(dir, outputSequencePayloads(item.result), sourceFrames, savedID);
-          savedID += saved;
+        for (let i = 0; i < results.length; i += 1) {
+          await saveLocalVideoDisplayItem(dir, results[i], results[i].display_id);
         }
       }
       return dirname;
@@ -1560,7 +1605,7 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#17212b";
       ctx.font = "800 32px sans-serif";
-      ctx.fillText("序列解析结果", 44, 62);
+      ctx.fillText("解析步态序列结果", 44, 62);
       const rows = [
         ["Sequence ID", seq.sequence_id || data?.task_id || "-"],
         ["Split Count", sequenceResultPayloads(data).length || 1],
@@ -1626,7 +1671,7 @@
       $("resultAssets").className = "result-assets show";
       $("resultAssets").innerHTML = `
         <section class="sequence-summary-panel">
-          <h2>序列解析结果</h2>
+          <h2>解析步态序列结果</h2>
           <dl class="sequence-summary-list">
             ${rows.map(([label, value]) => `<dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd>`).join("")}
           </dl>
@@ -2169,10 +2214,17 @@
 
     function localVideoFramesForItem(item) {
       if (!item) return [];
-      const ownFrames = localVideoFrameStore.get(sequenceKey(item.sequence_id)) || [];
-      if (ownFrames.length) return ownFrames;
       const sourceFrames = localVideoFrameStore.get(sequenceKey(item.source_sequence_id)) || [];
-      return localVideoFramesForResult(item?.result, sourceFrames);
+      if (sourceFrames.length) {
+        const matched = localVideoFramesForResult(item?.result, sourceFrames);
+        return matched.length ? matched : sourceFrames;
+      }
+      const ownFrames = localVideoFrameStore.get(sequenceKey(item.sequence_id)) || [];
+      if (ownFrames.length) {
+        const matched = localVideoFramesForResult(item?.result, ownFrames);
+        return matched.length ? matched : ownFrames;
+      }
+      return [];
     }
 
     function localVideoPreviewBase64(item) {
@@ -2242,7 +2294,7 @@
 
     function localVideoSequenceCardHTML(item, index) {
       const sequenceID = sequenceKey(item.sequence_id || `seq_${index + 1}`);
-      const displayID = index + 1;
+      const displayID = Number(item.display_id || 0) > 0 ? Number(item.display_id) : index + 1;
       const selected = localVideoViewState.selected.includes(sequenceID);
       const image = localVideoPreviewBase64(item);
       const frames = localVideoFramesForItem(item);
@@ -2251,7 +2303,7 @@
       return `
         <div class="sequence-card ${selected ? "selected" : ""}" data-sequence-id="${escapeHTML(sequenceID)}">
           <div class="sequence-thumb" data-sequence-id="${escapeHTML(sequenceID)}" onclick="showLocalVideoSequenceFrames(${escapeHTML(sequenceIDArg)})">
-            ${image ? `<img src="data:image/jpeg;base64,${image}" alt="sequence ${index + 1}">` : `<div style="aspect-ratio:1/1;background:#eef2ed;"></div>`}
+            ${image ? `<img src="data:image/jpeg;base64,${image}" alt="sequence ${displayID}">` : `<div style="aspect-ratio:1/1;background:#eef2ed;"></div>`}
             <button class="sequence-select-badge" type="button" data-sequence-id="${escapeHTML(sequenceID)}" title="选择序列" aria-label="选择序列" onclick="event.stopPropagation(); toggleLocalVideoSequenceSelection(${escapeHTML(sequenceIDArg)})"></button>
           </div>
           <div class="sequence-card-title"><span>ID:${displayID}</span><span>${frameCount}帧</span></div>
@@ -2346,6 +2398,7 @@
     function updateForm() {
       const identity = $("identity").value;
       const capability = $("capability").value;
+      const fileButtonLabel = $("fileButtonLabel");
       $("apiKey").disabled = identity !== "registered";
       $("apiKey").placeholder = identity === "registered" ? t("apiKeyPlaceholder") : t("apiKeyTrialPlaceholder");
       $("apiKeyRow").classList.toggle("disabled-field", identity !== "registered");
@@ -2354,6 +2407,10 @@
       $("promptRow").classList.toggle("disabled-field", capability !== "locate");
       $("files").accept = capability === "localVideo" ? "video/*" : "image/*";
       $("files").multiple = capability !== "locate" && capability !== "localVideo";
+      if (fileButtonLabel) {
+        const labelKey = capability === "localVideo" ? "uploadVideo" : capability === "locate" ? "uploadImage" : "uploadSequenceFrames";
+        fileButtonLabel.textContent = t(labelKey);
+      }
       $("hint").textContent = "";
       updateSelectedFileName($("files").files);
     }
@@ -2411,13 +2468,39 @@
       }
     }
 
-    async function requestJSON(path, body, apiKey = "") {
+    const DEFAULT_API_TIMEOUT_MS = 120000;
+    const LOCAL_VIDEO_STALL_TIMEOUT_MS = 45000;
+
+    function timeoutMessage(path, timeoutMs) {
+      return `请求超时：${path} 在 ${Math.round(timeoutMs / 1000)} 秒内没有返回。请检查网络或稍后重试。`;
+    }
+
+    async function requestJSON(path, body, apiKey = "", options = {}) {
       const headers = { "Content-Type": "application/json" };
       if (apiKey) headers.Authorization = "Bearer " + apiKey;
-      const resp = await fetch(baseURL() + path, { method: "POST", headers, body: JSON.stringify(body) });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw makeAPIError(resp.status, data);
-      return data;
+      const timeoutMs = Number(options.timeoutMs || DEFAULT_API_TIMEOUT_MS);
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const resp = await fetch(baseURL() + path, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw makeAPIError(resp.status, data);
+        return data;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          const err = new Error(timeoutMessage(path, timeoutMs));
+          err.code = "request_timeout";
+          throw err;
+        }
+        throw error;
+      } finally {
+        window.clearTimeout(timer);
+      }
     }
 
     async function runRegisteredSequence(capability, frames, apiKey) {
@@ -2606,19 +2689,106 @@
       };
     }
 
-    function previewVideo(file) {
+    function createLocalVideoProgressWatchdog(timeoutMs, getDetail) {
+      let timer = null;
+      let stopped = false;
+      let rejectTimeout = null;
+      const promise = new Promise((_, reject) => {
+        rejectTimeout = reject;
+      });
+      const reset = () => {
+        if (stopped) return;
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(() => {
+          if (stopped) return;
+          const detail = typeof getDetail === "function" ? getDetail() : "";
+          const error = new Error(`视频解析长时间没有进展${detail ? `：${detail}` : ""}。请检查浏览器是否仍在前台运行，或换一个 H.264 MP4 视频重试。`);
+          error.code = "local_video_stalled";
+          if (rejectTimeout) rejectTimeout(error);
+        }, timeoutMs);
+      };
+      reset();
+      return {
+        promise,
+        progress() {
+          reset();
+        },
+        stop() {
+          stopped = true;
+          if (timer) window.clearTimeout(timer);
+          timer = null;
+        },
+      };
+    }
+
+    function browserVideoDecodeHint() {
+      return "视频加载失败，浏览器可能不支持该视频编码。MP4 文件如果内部编码是 mp4v / MPEG-4 Part 2，Chrome/Edge 等浏览器可能无法解码。请先转成 H.264 MP4 后再试，例如：ffmpeg -i input.mp4 -c:v libx264 -pix_fmt yuv420p -movflags +faststart -an output_h264.mp4";
+    }
+
+    function checkBrowserVideoDecode(file) {
       return new Promise((resolve, reject) => {
         const video = document.createElement("video");
+        const url = URL.createObjectURL(file);
+        let settled = false;
+        const cleanup = () => {
+          video.removeAttribute("src");
+          video.load();
+          URL.revokeObjectURL(url);
+        };
+        const fail = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error(browserVideoDecodeHint()));
+        };
         video.muted = true;
         video.playsInline = true;
         video.preload = "metadata";
-        video.src = URL.createObjectURL(file);
+        video.onloadedmetadata = () => {
+          const validDuration = Number.isFinite(video.duration) && video.duration > 0;
+          const validSize = Number(video.videoWidth || 0) > 0 && Number(video.videoHeight || 0) > 0;
+          if (!validDuration && !validSize) {
+            fail();
+            return;
+          }
+          if (!settled) {
+            settled = true;
+            cleanup();
+            resolve();
+          }
+        };
+        video.onloadeddata = () => {
+          if (!settled) {
+            settled = true;
+            cleanup();
+            resolve();
+          }
+        };
+        video.onerror = fail;
+        window.setTimeout(fail, 8000);
+        video.src = url;
+      });
+    }
+
+    function previewVideo(file) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement("video");
+        const url = URL.createObjectURL(file);
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+        video.src = url;
         video.onloadeddata = () => {
           draw(video, []);
-          URL.revokeObjectURL(video.src);
+          video.removeAttribute("src");
+          video.load();
+          URL.revokeObjectURL(url);
           resolve();
         };
-        video.onerror = () => reject(new Error("视频预览失败，浏览器不支持该格式。"));
+        video.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error(browserVideoDecodeHint()));
+        };
       });
     }
 
@@ -2704,6 +2874,7 @@
       setRuntimeInfo("");
       $("raw").textContent = "{}";
       setStatus("正在调用 W-Agent...");
+      let activeLocalVideoWatchdog = null;
       try {
         let data;
         let completionMessage = "调用完成。";
@@ -2720,6 +2891,7 @@
             fingerprint: browserFingerprint(),
           }, identity === "registered" ? apiKey : "");
         } else if (capability === "localVideo") {
+          await checkBrowserVideoDecode(files[0]);
           clearPreviewCanvas();
           if (!window.WAgentPersonDet) {
             throw new Error("浏览器版 persondet 未加载完整，请重新下载最新 HTML。");
@@ -2733,12 +2905,30 @@
           };
           $("raw").textContent = JSON.stringify({ local_video: liveLocalVideo }, null, 2);
           renderLocalVideoResults(liveLocalVideo);
+          const localVideoProgress = {
+            stage: "准备本地解析",
+            processed: 0,
+            total: "未知",
+            uploaded: 0,
+            completed: 0,
+          };
+          const localVideoWatchdog = createLocalVideoProgressWatchdog(LOCAL_VIDEO_STALL_TIMEOUT_MS, () => {
+            return `${localVideoProgress.stage}，进度 ${localVideoProgress.processed}/${localVideoProgress.total} 帧，已提取 ${localVideoProgress.uploaded} 个序列，API 已返回 ${localVideoProgress.completed} 个序列`;
+          });
+          activeLocalVideoWatchdog = localVideoWatchdog;
+          let nextOutputDisplayID = 1;
           const uploadQueue = createSequenceUploadQueue(2, async (seq, index) => {
+            localVideoProgress.stage = "上传并解析序列";
+            localVideoProgress.uploaded = Math.max(localVideoProgress.uploaded, index);
+            localVideoWatchdog.progress();
             setStatus(`已提取序列 ${index}，正在异步上传并解析，帧数 ${seq.frames.length}。`);
             const result = await runSequenceByIdentity("sequence", seq.frames, identity, apiKey);
+            localVideoProgress.completed += 1;
+            localVideoWatchdog.progress();
             localVideoFrameStore.set(sequenceKey(seq.sequence_id), seq.frames || []);
             const splitSequences = sequencePayloads(result);
             return splitSequences.map((split, splitIndex) => ({
+              display_id: nextOutputDisplayID++,
               sequence_id: split.sequence_id || `${seq.sequence_id}_split_${splitIndex + 1}`,
               source_sequence_id: seq.sequence_id,
               track_id: seq.track_id,
@@ -2752,14 +2942,20 @@
             liveLocalVideo.results = results.slice();
             $("raw").textContent = JSON.stringify({ local_video: liveLocalVideo }, null, 2);
             if (item && item.status !== "failed") {
+              localVideoProgress.completed = results.filter((entry) => entry && entry.status !== "failed").length;
+              localVideoWatchdog.progress();
               renderLocalVideoResults(liveLocalVideo, localVideoViewState.page);
-              saveLocalVideoItemRealtime(localVideoSaveContext, item).catch((error) => {
+              saveLocalVideoItemRealtime(localVideoSaveContext, item, item.display_id).catch((error) => {
                 setStatus(`序列实时保存失败：${error.message || error}`, true);
               });
             }
           });
-          const extracted = await window.WAgentPersonDet.extractLocalVideoSequence(files[0], {
+          const extracted = await Promise.race([
+            window.WAgentPersonDet.extractLocalVideoSequence(files[0], {
             onSequence: (seq) => {
+              localVideoProgress.stage = "提取到序列，等待上传";
+              localVideoProgress.uploaded += 1;
+              localVideoWatchdog.progress();
               localVideoFrameStore.set(sequenceKey(seq.sequence_id), seq.frames || []);
               uploadQueue.add(seq);
             },
@@ -2769,11 +2965,24 @@
                 return;
               }
               if (p.stage === "sequence_ready") return;
+              localVideoProgress.stage = "本地解码检测";
+              localVideoProgress.processed = p.processed || 0;
+              localVideoProgress.total = p.total || "未知";
+              localVideoWatchdog.progress();
               setStatus(`视频解析进度：${p.processed || 0}/${p.total || "未知"}帧`);
             },
-          });
+            }),
+            localVideoWatchdog.promise,
+          ]);
+          localVideoProgress.stage = "等待已提取序列的 API 解析结果";
+          localVideoWatchdog.progress();
           setStatus(`视频本地解析完成，等待已提取序列的 API 解析结果...`);
-          const results = await uploadQueue.wait();
+          const results = await Promise.race([
+            uploadQueue.wait(),
+            localVideoWatchdog.promise,
+          ]);
+          localVideoWatchdog.stop();
+          activeLocalVideoWatchdog = null;
           const successCount = results.filter((item) => item && item.status !== "failed").length;
           const failedCount = results.filter((item) => item && item.status === "failed").length;
           liveLocalVideo.boxes = extracted.boxes;
@@ -2782,7 +2991,7 @@
           data = {
             local_video: liveLocalVideo,
           };
-          completionMessage = `视频序列解析完成：成功 ${successCount} 个，失败 ${failedCount} 个。`;
+          completionMessage = `视频步态序列解析完成：成功 ${successCount} 个，失败 ${failedCount} 个。`;
           setStatus(completionMessage);
         } else {
           clearPreviewCanvas();
@@ -2841,6 +3050,7 @@
         }
         showErrorAction(error);
       } finally {
+        if (activeLocalVideoWatchdog) activeLocalVideoWatchdog.stop();
         $("runButton").disabled = false;
       }
     });

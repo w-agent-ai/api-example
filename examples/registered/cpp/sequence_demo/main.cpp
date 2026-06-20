@@ -15,13 +15,13 @@
 #include <nlohmann/json.hpp>
 
 // Public API endpoint. Change this to your own deployment if needed.
-static const std::string kBaseURL = "http://116.198.210.0:3005";
+static const std::string kBaseURL = "https://www.w-agent.cn/api";
 
 // Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 static const std::string kAPIKey = "";
 
 // A sequence is a directory of cropped person images belonging to one track.
-static const std::string kSeqDir = "../../../seqs/nonuser/day_cl01/40-day_cl01-22949/imgs";
+static const std::string kSeqDir = "../../../sample_sequences/ID_0001";
 static constexpr double kSamePersonThreshold = 0.7;
 
 struct HTTPResponse {
@@ -202,10 +202,10 @@ int main() {
   nlohmann::json parsePayload = {{"frames", parseFrames}};
 
   // Step 4: call the standalone Gait Pose API. This is a separate billable
-  // operation from full sequence parsing and returns only pose outputs.
+  // operation from full gait sequence parsing and returns only pose outputs.
   nlohmann::json gaitPose = nlohmann::json::parse(requestJSON("POST", "/v1/sequences/" + taskID + "/gait-pose", &parsePayload).body);
 
-  // Step 5: start synchronous sequence parsing. Registered users are billed
+  // Step 5: start synchronous gait sequence parsing. Registered users are billed
   // from their account balance by the server.
   nlohmann::json parsed = nlohmann::json::parse(requestJSON("POST", "/v1/sequences/" + taskID + "/parse", &parsePayload).body);
 

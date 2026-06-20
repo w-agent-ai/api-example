@@ -38,8 +38,13 @@ Authorization: Bearer <api_key>
 Set your registered API Key before running registered-user demos:
 
 ```bash
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
 export GAIT_REGISTERED_API_KEY='gak_your_api_key'
 ```
+
+Use `https://www.w-agent.cn/api` as the public Base URL. Do not guess
+`https://api.w-agent.cn`; that hostname is not the documented API origin and may
+fail TLS hostname verification.
 
 ## Input Mode 1: Sequence Input
 
@@ -53,6 +58,7 @@ Registered-user examples:
 
 ```bash
 python3 examples/registered/python/sequence_and_video_api_demo.py
+python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
 cd examples/registered/go/sequence_demo && ./build.sh && ./registered_sequence_demo
 cd examples/registered/cpp/sequence_demo && ./build.sh && ./build/registered_sequence_demo
 ```
@@ -66,7 +72,7 @@ python3 examples/anonymous/python/anonymous_sequence_x402_demo.py
 ## Input Mode 2: Video Input
 
 Use this when the client wants to upload a full video directly. The service
-does server-side detection, tracking, sequence parsing, and result generation.
+does server-side detection, tracking, gait sequence parsing, and result generation.
 
 Registered-user examples:
 
@@ -104,7 +110,7 @@ the generated sequence folders.
 ### Python
 
 The Python registered-user demo processes all leaf sequence directories under
-`examples/seqs` and all videos under `examples/video`, then writes JSON results
+`examples/sample_sequences` and all videos under `examples/video`, then writes JSON results
 and feature similarity reports under `tmp/registered_batch_results`.
 
 Result JSON includes `emotions` when the SDK returns them. Sequence parsing no
@@ -116,12 +122,29 @@ Similarity reports first compute dot-product scores for `gait_feature`,
 `fused_similarity`. The default same-person threshold is `0.7`; scores above
 `0.7` are usually likely to be the same person.
 
+Feature vectors live under `response.sequences[]`, not at the top level. For
+example: `response.sequences[0].gait_feature`. Compare only same-type vectors:
+gait to gait, face to face, and ReID to ReID. `face_feature` can be empty when
+no usable face is detected; this is not an API failure.
+
 The registered sequence demos also call `POST /v1/sequences/{task_id}/gait-pose`
 after uploading frames. Gait Pose is a standalone billable API, currently
-priced separately from full sequence parsing at `$0.10 / 1K frames`.
+priced separately from full gait sequence parsing at `$0.10 / 1K frames`.
 
 ```bash
 python3 examples/registered/python/sequence_and_video_api_demo.py
+```
+
+For a compact local-folder-to-CSV identity comparison:
+
+```bash
+python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
+```
+
+图搜万物最小可运行示例：
+
+```bash
+python3 examples/registered/python/object_search_api_demo.py examples/sample_sequences/ID_0001/001811.jpg 'person'
 ```
 
 The MCP demo calls the integrated `/mcp` JSON-RPC endpoint directly. It lists

@@ -16,7 +16,7 @@ import (
 
 const (
 	// Public API endpoint. Change this to your own deployment if needed.
-	defaultBaseURL = "http://116.198.210.0:3005"
+	defaultBaseURL = "https://www.w-agent.cn/api"
 
 	// Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 	defaultAPIKey = ""
@@ -33,14 +33,12 @@ type createVideoResponse struct {
 }
 
 type sequenceResult struct {
-	SequenceID  string      `json:"sequence_id"`
-	FrameCount  int         `json:"frame_count"`
-	GaitFeature []float64   `json:"gait_feature"`
-	ReIDFeature []float64   `json:"reid_feature"`
-	FaceFeature []float64   `json:"face_feature"`
-	Pose2Ds     [][]float64 `json:"pose_2ds"`
-	Pose3Ds     [][]float64 `json:"pose_3ds"`
-	Emotions    []int       `json:"emotions"`
+	SequenceID  string    `json:"sequence_id"`
+	FrameCount  int       `json:"frame_count"`
+	GaitFeature []float64 `json:"gait_feature"`
+	ReIDFeature []float64 `json:"reid_feature"`
+	FaceFeature []float64 `json:"face_feature"`
+	Emotions    []int     `json:"emotions"`
 }
 
 type videoResult struct {
@@ -103,8 +101,6 @@ func main() {
 		fmt.Printf("first_gait_feature_dim=%d\n", len(first.GaitFeature))
 		fmt.Printf("first_reid_feature_dim=%d\n", len(first.ReIDFeature))
 		fmt.Printf("first_face_feature_dim=%d\n", len(first.FaceFeature))
-		fmt.Printf("first_pose2d_frames=%d\n", len(first.Pose2Ds))
-		fmt.Printf("first_pose3d_frames=%d\n", len(first.Pose3Ds))
 		fmt.Printf("first_emotions=%d\n", len(first.Emotions))
 	}
 	if len(result.Sequences) >= 2 {

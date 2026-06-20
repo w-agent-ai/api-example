@@ -45,14 +45,14 @@ ROOT = Path(__file__).resolve().parents[3]
 # 402 Payment Required challenge, signs an x402 payment payload with an EVM
 # wallet private key, and retries the same API operation with payment headers.
 EVM_PRIVATE_KEY = ""
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "http://116.198.210.0:3005")
+BASE_URL = os.environ.get("GAIT_API_BASE_URL", "https://www.w-agent.cn/api")
 
 # Sequence input:
-#   examples/seqs may contain nested folders.
+#   examples/sample_sequences contains small bundled sequence folders.
 #   Each leaf folder that directly contains images is treated as one sequence.
 # Video input:
 #   examples/video is scanned recursively for common video file extensions.
-SEQ_ROOT = ROOT / "examples" / "seqs"
+SEQ_ROOT = ROOT / "examples" / "sample_sequences"
 VIDEO_ROOT = ROOT / "examples" / "video"
 
 # All raw API responses and derived similarity reports are written here.
@@ -100,7 +100,7 @@ def main() -> int:
     check_api_health()
 
     with requests.Session() as session:
-        # Public sequence parsing is: create task -> upload frames -> preview
+        # Public gait sequence parsing is: create task -> upload frames -> preview
         # parse returns 402 -> pay x402 -> retry parse.
         for index, seq_dir in enumerate(seq_dirs, start=1):
             print(f"[sequence {index}/{len(seq_dirs)}] {seq_dir}")

@@ -1,4 +1,4 @@
-# Gait Parsing Service API Draft
+# W-Agent API Reference
 
 先阅读：
 
@@ -92,6 +92,60 @@ Admin requests:
 
 - Header: `Authorization: Bearer <admin_token>`
 
+## Public Base URL
+
+Use this exact public API base URL:
+
+```text
+https://www.w-agent.cn/api
+```
+
+Do not guess `https://api.w-agent.cn`; it is not the documented API origin and
+may fail TLS hostname verification in clients such as Python `requests`.
+
+Registered calls use:
+
+```http
+Authorization: Bearer <api_key>
+```
+
+## Agent Quickstart: Parse Local Sequences And Compare
+
+The demo package contains small public sequence data under
+`examples/sample_sequences`. These sequences are intended to return valid
+`gait_feature` and `reid_feature` results.
+
+Run the compact Python demo:
+
+```bash
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
+export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
+```
+
+The sequence API flow is:
+
+1. `POST /v1/sequences` with `{"frame_count": N}`.
+2. `PUT` each image to the returned `uploads[].upload_url`.
+3. Keep each returned `uploads[].object_key`.
+4. `POST /v1/sequences/{task_id}/parse` with `frames[].index` and `frames[].object_key`.
+5. Read features from `response.sequences[]`, for example `response.sequences[0].gait_feature`.
+
+Similarity:
+
+- `gait_feature` compares only with `gait_feature`.
+- `face_feature` compares only with `face_feature`.
+- `reid_feature` compares only with `reid_feature`.
+- Use dot product: `sum(a * b for a, b in zip(feature_a, feature_b))`.
+- `face_feature` can be `null` or empty when no usable face is detected; this is not an API failure.
+
+Common first-use errors:
+
+- `400 invalid request body` on `POST /v1/sequences`: you probably uploaded images directly; send only `{"frame_count": N}` first.
+- Missing or empty `frames` on `/parse`: pass back `object_key` values returned by create.
+- Empty `response.sequences`: the frames did not form a valid moving gait sequence.
+- TLS hostname mismatch: use `https://www.w-agent.cn/api`.
+
 ## Task Types
 
 - `video`
@@ -123,6 +177,12 @@ Delete endpoints:
 5. Service returns the parsing result synchronously. The response contains `sequences`, because one uploaded track can split into multiple single-person outputs.
 6. The same sequence parse response can be fetched again later until retention cleanup deletes it.
 
+Why a single input sequence returns a `sequences` array:
+
+- A client usually uploads one tracked-person sequence, but tracking IDs can drift when people cross or occlude each other. For example, the first half of one track may be person A, and after a crossing the same track ID may follow person B.
+- The backend sequence parser checks the uploaded track with ReID features. If it detects an ID switch or mixed-person frames, it splits the input at the switch point and returns multiple clean single-person output sequences.
+- Frames that are ambiguous or not suitable for a clean single-person output may be dropped.
+
 Delete endpoints:
 
 - `DELETE /v1/sequences/{task_id}`
@@ -147,6 +207,10 @@ Management endpoints:
 
 `type=browser` returns a standalone HTML file directly. Other demo download
 types return ZIP packages.
+
+GET endpoints also accept `HEAD` for lightweight URL probing. `HEAD` returns
+the same status and headers as `GET` with an empty response body.
+
 - `GET /v1/portal/bootstrap`
 - `GET /v1/payment-capabilities`
 - `GET /v1/admin/overview`
@@ -281,7 +345,7 @@ Runtime config file:
   - `locate_anything.timeout_seconds`
   - `locate_anything.price_per_image`
 
-Pricing amounts configured in admin are stored as CNY minor units (fen). Registered-user wallet balance, monthly plan allowance, and usage records use CNY. English UI and public price estimates may show USD equivalents by `cny_usd_exchange_rate`; anonymous x402 settlement is still USD/stablecoin based, and the server converts CNY order amounts to USD cents by `cny_usd_exchange_rate`.
+Pricing amounts configured in admin are stored as CNY minor units (fen). Registered-user wallet balance, monthly plan allowance, and usage records use CNY. English UI and public price estimates may show USD equivalents by `cny_usd_exchange_rate`; anonymous x402 settlement is still USD/stablecoin based, and the server converts CNY order amounts to USD cents by `cny_usd_exchange_rate`. CNY to USD conversion is always rounded up to the next USD cent, with any positive USD amount displayed or charged as at least `$0.01`.
 
 Runtime behavior:
 
@@ -318,7 +382,7 @@ Gait Pose:
 - default registered-user price is `¥0.10 / image`
 - trial calls do not charge wallet balance; they consume the runtime-configured trial total amount stored in `trial_usage` and append a zero-amount `usage_records` row with `source=trial`
 - portal homepage and browser-client trial calls share the same cumulative trial amount bucket for the same IP
-- Gait Pose is a separate endpoint and is billed independently from full sequence parsing
+- Gait Pose is a separate endpoint and is billed independently from full gait sequence parsing
 
 Registered user settlement:
 
@@ -759,6 +823,10 @@ Paid response:
 
 ### GET /v1/public/videos/{task_id}
 
+Headers:
+
+- `X-Task-Token: <task_token>`
+
 Response:
 
 ```json
@@ -824,6 +892,10 @@ If phase 2 is unpaid, return HTTP `402`.
 If phase 2 is paid, return the same full result shape as the registered `GET /v1/videos/{task_id}/result`.
 
 ### DELETE /v1/public/videos/{task_id}
+
+Headers:
+
+- `X-Task-Token: <task_token>`
 
 Marks the task for early cleanup.
 
@@ -936,12 +1008,98 @@ Response:
 
 Sequence result fields:
 
-- `sequences`: all split single-person sequences returned by `GetSplitSeqFeature`. One uploaded track can produce multiple outputs when tracking mixed different people or stray frames; invalid/ambiguous frames may be dropped by the SDK.
+- `sequences`: all split single-person sequences returned by `GetSplitSeqFeature`. One uploaded track can produce multiple outputs when tracking mixed different people or stray frames. This mainly handles tracking ID switches: when two people cross, the tracker may continue the same ID on another person; the backend uses ReID features to detect this and split the input at the switch point. Invalid or ambiguous frames may be dropped by the SDK.
 - `sequence_count`: number of returned `sequences`.
 - `frames`: frame IDs and optional boxes returned by the SDK for this output sequence. When the SDK does not return frame-level mapping, this field is an empty array and `frame_count` is `0`; clients should not assume it equals the uploaded input frame count.
 - `emotions`: emotion output returned by the SDK.
 - `gait_images`: response-compatible field for per-frame gait crops. Public API responses currently keep it as an empty array and do not embed image bytes.
 - `gait_image` / `face_image`: signed task-scoped asset URLs. These URLs expire with the task retention window; after expiry or cleanup, downloading returns an error instead of another task's asset.
+
+Runnable Python example:
+
+```python
+import math
+import os
+from pathlib import Path
+from urllib.parse import urljoin
+
+import requests
+
+BASE_URL = os.getenv("W_AGENT_BASE_URL", "https://www.w-agent.cn")
+API_KEY = os.getenv("W_AGENT_API_KEY", "gak_replace_me")
+IMAGE_DIR = Path(os.getenv("W_AGENT_IMAGE_DIR", "./sequence_frames"))
+
+
+def request_json(session, method, path, **kwargs):
+    url = urljoin(BASE_URL.rstrip("/") + "/", path.lstrip("/"))
+    resp = session.request(method, url, timeout=120, **kwargs)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"{method} {path} failed: {resp.status_code} {resp.text}")
+    return resp.json()
+
+
+def upload_binary(session, upload_url, path):
+    url = urljoin(BASE_URL.rstrip("/") + "/", upload_url.lstrip("/"))
+    with open(path, "rb") as f:
+        resp = session.put(url, data=f, headers={"Content-Type": "image/jpeg"}, timeout=120)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"upload {path} failed: {resp.status_code} {resp.text}")
+
+
+def parse_sequence(image_dir):
+    frames = sorted(
+        p for p in image_dir.iterdir()
+        if p.suffix.lower() in {".jpg", ".jpeg", ".png"}
+    )
+    if not frames:
+        raise RuntimeError(f"no images found in {image_dir}")
+
+    session = requests.Session()
+    session.headers.update({"Authorization": f"Bearer {API_KEY}"})
+
+    created = request_json(session, "POST", "/v1/sequences", json={"frame_count": len(frames)})
+    task_id = created["task_id"]
+    parse_frames = []
+
+    for path, upload in zip(frames, created["uploads"]):
+        upload_binary(session, upload["upload_url"], path)
+        parse_frames.append({
+            "index": upload["index"],
+            "object_key": upload["object_key"],
+        })
+
+    parsed = request_json(
+        session,
+        "POST",
+        f"/v1/sequences/{task_id}/parse",
+        json={"frame_count": len(frames), "frames": parse_frames},
+    )
+    sequences = parsed.get("sequences") or []
+    if not sequences:
+        raise RuntimeError(f"no valid output sequence: {parsed}")
+    return sequences[0]
+
+
+def l2_normalize(values):
+    norm = math.sqrt(sum(float(x) * float(x) for x in values))
+    return [float(x) / norm for x in values] if norm else []
+
+
+def dot(a, b):
+    return sum(x * y for x, y in zip(a, b))
+
+
+if __name__ == "__main__":
+    seq = parse_sequence(IMAGE_DIR)
+    gait_feature = seq.get("gait_feature") or []
+    print("sequence_id:", seq.get("sequence_id"))
+    print("frame_count:", seq.get("frame_count"))
+    print("gait_feature_dim:", len(gait_feature))
+    # To compare two outputs, use dot product between L2-normalized features.
+    # If your SDK/config returns already normalized vectors, direct dot product is equivalent.
+    similarity_to_self = dot(l2_normalize(gait_feature), l2_normalize(gait_feature))
+    print("self_similarity:", similarity_to_self)
+```
 
 ### GET /v1/sequences/{task_id}/result
 
@@ -1049,9 +1207,20 @@ Response:
   "billing": {
     "amount": 10,
     "currency": "CNY",
+    "price_amount": 10,
+    "price_currency": "CNY",
+    "charge_amount": 10,
+    "charge_currency": "CNY",
     "order_id": "locate_xxx"
   }
 }
+```
+
+Minimal Python demo:
+
+```bash
+export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+python3 examples/registered/python/object_search_api_demo.py examples/sample_sequences/ID_0001/001811.jpg 'person'
 ```
 
 ### POST /v1/public/object-search/trial
@@ -1123,6 +1292,30 @@ Response:
 
 ### POST /v1/public/sequences/{task_id}/parse
 
+Headers:
+
+- `X-Task-Token: <task_token>`
+
+Request:
+
+```json
+{
+  "frame_count": 4,
+  "frames": [
+    {
+      "index": 0,
+      "object_key": "sequences/seq_xxx/000000.jpg"
+    },
+    {
+      "index": 1,
+      "object_key": "sequences/seq_xxx/000001.jpg"
+    }
+  ]
+}
+```
+
+`frames[].object_key` must be copied from the `POST /v1/public/sequences` create response after uploading each frame to `uploads[].upload_url`.
+
 Unpaid request may return HTTP `402`.
 
 402 body:
@@ -1165,6 +1358,26 @@ Paid request returns the same result shape as the registered sequence parse API.
 Headers:
 
 - `X-Task-Token: <task_token>`
+
+Request:
+
+```json
+{
+  "frame_count": 4,
+  "frames": [
+    {
+      "index": 0,
+      "object_key": "sequences/seq_xxx/000000.jpg"
+    },
+    {
+      "index": 1,
+      "object_key": "sequences/seq_xxx/000001.jpg"
+    }
+  ]
+}
+```
+
+`frames[].object_key` must be copied from the `POST /v1/public/sequences` create response after uploading each frame to `uploads[].upload_url`.
 
 Unpaid request may return HTTP `402` with `payment_context.phase = "gait_pose_once"`.
 
@@ -1224,6 +1437,55 @@ Behavior:
 - response body keeps `payment_context` for debugging and non-agent clients
 - client pays and retries settlement with `PAYMENT-SIGNATURE`
 - legacy headers `X-Payment-Required` and `X-Payment-Signature` are also accepted for compatibility
+
+Anonymous x402 client flow:
+
+1. Create a public task and upload input frames or video.
+2. Call the paid public endpoint once without payment, for example `POST /v1/public/sequences/{task_id}/parse`.
+3. The server returns HTTP `402` with `payment_context.challenge` and header `PAYMENT-REQUIRED`.
+4. Sign the challenge with an x402-compatible client/wallet.
+5. Retry the same HTTP request with `PAYMENT-SIGNATURE: <signed x402 payment payload>`.
+
+Example 402 response shape for sequence parsing:
+
+```json
+{
+  "error": {
+    "code": "payment_required",
+    "message": "sequence parse payment required"
+  },
+  "payment_context": {
+    "provider": "x402",
+    "phase": "sequence_parse",
+    "order_id": "ord_xxx",
+    "amount": "0.01",
+    "currency": "USD",
+    "expires_at": "2026-06-20T12:00:00Z",
+    "pricing_basis": {
+      "input_sequence_count": 1,
+      "rate_per_sequence": 10
+    },
+    "challenge": {
+      "x402Version": 1,
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "payTo": "0xReceiverAddress",
+          "maxAmountRequired": "10000",
+          "extra": {
+            "assetSymbol": "USDC",
+            "assetTransferMethod": "eip3009"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+The exact challenge fields are deployment-dependent. Agents should parse `payment_context.challenge.accepts` instead of hard-coding one network or token. The Python x402 demos under `examples/anonymous/python/` show the full create-upload-preview-402-sign-retry flow.
 
 Current project API also exposes `GET /v1/payment-capabilities`, and `/v1/portal/bootstrap` includes the same `payment_capabilities` payload.
 
@@ -1291,7 +1553,7 @@ Route JSON example:
 Recommended route policy for this project:
 
 - keep admin-configured task prices in CNY minor units
-- convert CNY to USD for anonymous x402 settlement using `cny_usd_exchange_rate`
+- convert CNY to USD for anonymous x402 settlement using `cny_usd_exchange_rate`, rounded up to the next USD cent
 - enable `USDC` routes on supported networks with `asset_transfer_method=eip3009`
 - enable `USDT` routes on supported networks with `asset_transfer_method=permit2`
 - enable `EURC` on routes where you want the server to convert the USD order amount by `fx_usd_per_asset` or runtime `eurc_usd_exchange_rate`
@@ -1310,7 +1572,7 @@ Whether a buyer can complete a first-time Permit2 payment without a manual on-ch
 
 `EURC` support in this project works differently from `USDC` / `USDT`:
 
-- admin task pricing is configured in CNY minor units; public x402 USD amount is derived using `cny_usd_exchange_rate`
+- admin task pricing is configured in CNY minor units; public x402 USD amount is derived using `cny_usd_exchange_rate` and rounded up to the next USD cent
 - server converts the USD order amount into `EURC` using runtime `eurc_usd_exchange_rate`
 - default exchange rate is `1.15`, meaning `1 EUR = 1.15 USD`
 - the rate is stored in admin runtime config and can be updated without restarting the service

@@ -226,7 +226,7 @@ go run -tags sdk ./cmd/videoprobe ./data/video/test.mp4
 
 页面下载入口：
 
-- 用户门户：`http://116.198.210.0:3005/portal`
+- 用户门户：`https://www.w-agent.cn/portal`
 - 注册用户全部 Demo：`/portal/demo-download?type=registered`
 - 注册用户 Python Demo：`/portal/demo-download?type=registered-python`
 - 注册用户 C++ Demo：`/portal/demo-download?type=cpp`
@@ -250,15 +250,15 @@ python3 examples/registered/python/sequence_and_video_api_demo.py
 
 默认配置：
 
-- API 地址：`http://116.198.210.0:3005`
+- API 地址：`https://www.w-agent.cn/api`
 - API Key：写在脚本顶部，调用 `/v1/sequences` 和 `/v1/videos`
-- 序列目录：`examples/seqs`
+- 序列目录：`examples/sample_sequences`
 - 视频目录：`examples/video`
 - 输出目录：`tmp/registered_batch_results`
 
 脚本行为：
 
-- 递归扫描 `examples/seqs` 下所有“最末级图片目录”，每个目录作为一个序列。
+- 递归扫描 `examples/sample_sequences` 下所有“最末级图片目录”，每个目录作为一个序列。
 - 递归扫描 `examples/video` 下所有视频文件。
 - 保存每个接口返回的完整 JSON。
 - 对序列结果计算 `gait_feature`、`reid_feature`、`face_feature` 的两两点积相似度。
@@ -355,7 +355,7 @@ python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_se
 
 ### 6.5 浏览器试用客户端
 
-当前浏览器客户端是纯 HTML/JS，无需安装 Python 或 Node.js。它支持免注册试用和注册用户 API Key 两种身份，当前可调用图搜万物、序列解析和人体关节点接口，其中人体关节点是独立的 `gait-pose` 接口。
+当前浏览器客户端是纯 HTML/JS，无需安装 Python 或 Node.js。它支持免注册试用和注册用户 API Key 两种身份，当前可调用图搜万物、步态序列解析和人体关节点接口，其中人体关节点是独立的 `gait-pose` 接口。
 
 ```bash
 curl -fsS "http://127.0.0.1:3006/portal/demo-download?type=browser" -o w-agent-browser-client.html
@@ -386,8 +386,8 @@ open w-agent-browser-client.html
 
 ### 序列图片
 
-- 注册用户批量 Demo 默认读取 `examples/seqs`。
-- 匿名批量 Demo 默认读取 `examples/seqs`。
+- 注册用户批量 Demo 默认读取 `examples/sample_sequences`。
+- 匿名批量 Demo 默认读取 `examples/sample_sequences`。
 - 目录可以有多级，最末级且包含图片文件的目录会被当成一个序列。
 
 ### 视频

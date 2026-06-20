@@ -15,7 +15,7 @@
 #include <nlohmann/json.hpp>
 
 // Public API endpoint. Change this to your own deployment if needed.
-static const std::string kBaseURL = "http://116.198.210.0:3005";
+static const std::string kBaseURL = "https://www.w-agent.cn/api";
 
 // Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 static const std::string kAPIKey = "";

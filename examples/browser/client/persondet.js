@@ -368,11 +368,11 @@
     const samples = [];
     try {
       video.currentTime = 0;
-      await video.play();
       let previous = null;
       const target = Math.max(4, cfg.fpsSampleFrames || 12);
       const started = performance.now();
       while (samples.length < target && performance.now() - started < 1200 && !video.ended) {
+        await video.play();
         const metadata = await nextVideoFrame(video);
         const mediaTime = Number.isFinite(metadata.mediaTime) ? metadata.mediaTime : video.currentTime;
         if (previous !== null && mediaTime > previous) samples.push(mediaTime - previous);
@@ -514,7 +514,10 @@
         reject(new Error("requestVideoFrameCallback unsupported"));
         return;
       }
-      const callbackID = video.requestVideoFrameCallback((_, metadata) => resolve(metadata || {}));
+      const callbackID = video.requestVideoFrameCallback((_, metadata) => {
+        video.pause();
+        resolve(metadata || {});
+      });
       video.onerror = () => {
         if (typeof video.cancelVideoFrameCallback === "function") video.cancelVideoFrameCallback(callbackID);
         reject(new Error("视频解码失败，浏览器不支持该格式。"));
@@ -687,12 +690,6 @@
       if (typeof video.requestVideoFrameCallback !== "function") return false;
       reportProgress({ stage: "decode", mode: "continuous" });
       video.currentTime = 0;
-      const originalPlaybackRate = video.playbackRate || 1;
-      try {
-        video.playbackRate = 1;
-      } catch (_) {
-        // Some browsers reject playbackRate changes; decoding still works at 1x.
-      }
       await video.play();
       let nextProcessTime = 0;
       let frameID = 1;
@@ -701,7 +698,6 @@
           const decodeStart = performance.now();
           const metadata = await nextVideoFrame(video);
           timings.seek_ms += performance.now() - decodeStart;
-          video.pause();
           const mediaTime = Number.isFinite(metadata.mediaTime) ? metadata.mediaTime : video.currentTime;
           if (duration > 0 && mediaTime + 0.0005 < nextProcessTime) {
             await video.play();
@@ -714,9 +710,6 @@
           await video.play();
         }
       } finally {
-        try {
-          video.playbackRate = originalPlaybackRate;
-        } catch (_) {}
         video.pause();
       }
       return true;
