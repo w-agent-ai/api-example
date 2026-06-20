@@ -117,8 +117,20 @@ For agents and first-time users, choose by intent instead of API name:
 - To get stable person sequences from a video, prefer local video preprocessing first: detect, track, crop, write one folder per person sequence, then upload each folder to the Sequence API.
 - To extract 2D/3D keypoints, upload a sequence first and call `POST /v1/sequences/{task_id}/gait-pose`. Do not expect sequence parsing or video parsing to be the keypoint endpoint.
 - To find objects or people by text in a single image, use Object Search.
+- To call as a registered user, use `Authorization: Bearer <api_key>` on registered routes and pay from account balance.
+- To call anonymously, use public routes, handle HTTP 402 `payment_context`, sign an x402 payment, and retry the same HTTP request.
 
 W-Agent's core input for identity and pose APIs is a tracked person sequence, not an arbitrary full scene image. A full video is one possible source for generating those sequences.
+
+Task decision table:
+
+| User intent | Recommended API | Notes |
+| --- | --- | --- |
+| Judge whether two tracks are the same person | `POST /v1/sequences/{task_id}/parse` | Compare same-type `gait_feature`, `face_feature`, or `reid_feature` by dot product. |
+| Get identity features from a full video | Local video-to-sequence demo + Sequence API, or `/v1/videos` for server-side async parsing | Local preprocessing is easier for agents that need sequence folders and JSON files side by side. |
+| Get every person's 2D/3D keypoints from a video | Local video-to-sequence demo + `POST /v1/sequences/{task_id}/gait-pose` | Do not expect video parsing to return complete per-person pose arrays. |
+| Find targets in one image by text | `POST /v1/object-search` | Returns one or more boxes in uploaded image coordinates. |
+| Compare whether two raw images look alike | Not a W-Agent identity workflow | Do not replace identity matching with raw pixel or generic image similarity. |
 
 ## Agent Quickstart: Parse Local Sequences And Compare
 
@@ -183,6 +195,49 @@ control over local decoding, detection, tracking, and output folders. Direct
 `/v1/videos` upload is still supported for asynchronous server-side video
 parsing, but it is not the simplest path for agents that need per-sequence local
 files and JSON side by side.
+
+Boundary:
+
+- Video parsing is mainly for asynchronous full-video identity parsing and sequence/result asset extraction.
+- If the goal is pose for every person sequence, use the local video-to-sequence demo and call Gait Pose on each sequence.
+- If the caller needs deterministic local output folders, use local preprocessing instead of server-side video parsing.
+
+## Quickstart: Video To Each Person's 2D/3D Keypoints
+
+Use this task-level workflow when the user says: "I have a video and want 2D/3D
+keypoints for every person sequence."
+
+Recommended flow:
+
+1. Download or open the registered Python demo package.
+2. Run `local_video_to_sequence_api_demo.py`.
+3. The demo performs local person detection, tracking, and cropping.
+4. The demo creates one `sequence_XXX` folder per person track.
+5. Upload each sequence folder with `POST /v1/sequences` and `PUT uploads[].upload_url`.
+6. Call `POST /v1/sequences/{task_id}/gait-pose` for each uploaded sequence.
+7. Save each sequence's `result.json`, `pose_2d.csv`, and `pose_3d.csv` beside its frames.
+
+Command:
+
+```bash
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
+export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
+```
+
+Do not directly upload a multi-person video and expect video parsing to return
+complete per-sequence `pose_2ds` / `pose_3ds`. Video parse is intended for
+server-side asynchronous identity/video parsing. Gait Pose is a sequence API and
+is clearest when called on locally detected and tracked sequence images.
+
+Sequence input requirements for identity and pose APIs:
+
+- Use images from one tracked person sequence, ordered by time.
+- Prefer person crops, not full surveillance frames with multiple people and large background.
+- Keep `frames[].index` in the same temporal order as the images.
+- Provide enough moving-person frames. Very short or static tracks may return an empty result or a backend validation error.
+- If one track mixes multiple people, the backend may split it into multiple clean output sequences or drop ambiguous frames.
+- If images are crops and you need original-video coordinates later, keep local metadata such as `crop_x`, `crop_y`, `crop_w`, and `crop_h`.
 
 ## Task Types
 
@@ -1001,6 +1056,13 @@ Authentication required:
 
 - `Authorization: Bearer <api_key>`
 
+Input requirements:
+
+- Frames should come from one tracked person sequence and stay in temporal order.
+- Person crops are recommended. Full scene images with multiple people are not the intended input.
+- Very short, static, or heavily occluded tracks may produce an empty `sequences` array or a validation error.
+- If one uploaded track contains an identity switch, the backend may split it into multiple output sequences or drop ambiguous frames.
+
 Request:
 
 ```json
@@ -1263,6 +1325,13 @@ Result fields:
 - `emotions`: emotion output returned by the SDK.
 - `billing`: the independent `gait_pose_once` charge for this call.
 
+Frame and coordinate rules:
+
+- `pose_2ds[i]` and `pose_3ds[i]` correspond to the uploaded sequence frame at the same ordered position unless `frames` provides a more explicit mapping.
+- Coordinates are relative to the uploaded sequence image, not the original full video frame.
+- If uploaded images are person crops, map 2D coordinates back to the original video frame by adding local crop metadata such as `crop_x` and `crop_y`.
+- Invalid or low-quality frames may produce empty, null, or low-score pose entries depending on SDK output; clients should filter by array length and score.
+
 ## 图搜万物 API
 
 ### POST /v1/object-search
@@ -1280,6 +1349,16 @@ Purpose:
 - Forwards an image and a text prompt to the configured 图搜万物 upstream service.
 - Charges the registered user's wallet with `locate_anything`.
 - The configured upstream endpoint should accept `{"image_base64":"...","prompt":"..."}` and return `{"boxes":[...],"raw_text":"..."}`.
+
+Input and output rules:
+
+- `image_base64` should be raw base64 content without the `data:image/...;base64,` prefix.
+- JPEG and PNG are the safest image formats.
+- `prompt` can be Chinese or English when the configured upstream model supports it.
+- `boxes` may contain zero, one, or many matches.
+- No match is a successful response with `boxes: []`, not an API failure.
+- Box coordinates are pixel coordinates in the uploaded image: `x1,y1` top-left and `x2,y2` bottom-right.
+- `label` is generated by the upstream model and is not a fixed taxonomy.
 
 Request:
 
