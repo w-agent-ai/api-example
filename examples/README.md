@@ -46,6 +46,23 @@ Use `https://www.w-agent.cn/api` as the public Base URL. Do not guess
 `https://api.w-agent.cn`; that hostname is not the documented API origin and may
 fail TLS hostname verification.
 
+## Choose The Right Demo
+
+Choose by task intent:
+
+- Same-person identity comparison: use sequence parsing and compare
+  `gait_feature`, `face_feature`, or `reid_feature` with same-type dot product.
+  Do not use raw image similarity for identity.
+- Video to stable person sequences: use `local_video_to_sequence_demo` first.
+  It runs local detection/tracking/cropping, writes sequence folders, then calls
+  the Sequence API.
+- 2D/3D human keypoints: upload sequence frames first, then call
+  `POST /v1/sequences/{task_id}/gait-pose`.
+- Single-image text search: use `object_search_api_demo.py`.
+
+W-Agent's core identity and pose input is a tracked person sequence. A video is
+usually a source from which sequences are generated.
+
 ## Input Mode 1: Sequence Input
 
 Use this when the client already has tracked/cropped person image sequences.
@@ -105,6 +122,25 @@ python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_se
 Each local demo writes one folder per detected person sequence and then uploads
 the generated sequence folders.
 
+Recommended output shape for agents:
+
+```text
+output/
+  video_name/
+    sequence_001/
+      frame_0001.jpg
+      frame_0002.jpg
+      meta.txt
+      result.json
+      pose_2d.csv
+      pose_3d.csv
+    summary.csv
+```
+
+Keep the sequence frames and the corresponding API result JSON in the same
+folder. If one uploaded track returns multiple split `sequences[]`, save each
+split result as its own output sequence.
+
 ## Language Packages
 
 ### Python
@@ -130,6 +166,16 @@ no usable face is detected; this is not an API failure.
 The registered sequence demos also call `POST /v1/sequences/{task_id}/gait-pose`
 after uploading frames. Gait Pose is a standalone billable API, currently
 priced separately from full gait sequence parsing at `$0.10 / 1K frames`.
+
+Gait Pose coordinate notes:
+
+- `pose_2ds` outer array is frames; each frame is `3*17` COCO-order floats:
+  `x0,y0,score0...x16,y16,score16`.
+- `pose_3ds` outer array is frames; each frame is `3*17` H36M-order floats:
+  `x0,y0,z0...x16,y16,z16`.
+- Coordinates are relative to the uploaded sequence image. If the sequence
+  image is a crop from a video, use crop metadata from the local demo to map
+  points back to the original video frame.
 
 ```bash
 python3 examples/registered/python/sequence_and_video_api_demo.py

@@ -109,6 +109,17 @@ Registered calls use:
 Authorization: Bearer <api_key>
 ```
 
+## Choose The Right Task
+
+For agents and first-time users, choose by intent instead of API name:
+
+- To decide whether two tracks are the same person, use gait/face/ReID features from sequence parsing. Do not compare raw images or generic image embeddings.
+- To get stable person sequences from a video, prefer local video preprocessing first: detect, track, crop, write one folder per person sequence, then upload each folder to the Sequence API.
+- To extract 2D/3D keypoints, upload a sequence first and call `POST /v1/sequences/{task_id}/gait-pose`. Do not expect sequence parsing or video parsing to be the keypoint endpoint.
+- To find objects or people by text in a single image, use Object Search.
+
+W-Agent's core input for identity and pose APIs is a tracked person sequence, not an arbitrary full scene image. A full video is one possible source for generating those sequences.
+
 ## Agent Quickstart: Parse Local Sequences And Compare
 
 The demo package contains small public sequence data under
@@ -146,6 +157,33 @@ Common first-use errors:
 - Empty `response.sequences`: the frames did not form a valid moving gait sequence.
 - TLS hostname mismatch: use `https://www.w-agent.cn/api`.
 
+## Recommended Workflow: Video To Person Sequences
+
+Use this workflow when starting from a local video and the goal is identity
+comparison, pose extraction, or batch review:
+
+1. Run a local video-to-sequence demo.
+2. The demo decodes the video locally.
+3. It runs person detection and tracking locally.
+4. It crops each tracked person into a sequence folder.
+5. Upload each sequence folder to the Sequence API.
+6. For identity, call `/parse` and read `sequences[].gait_feature`, `sequences[].face_feature`, and `sequences[].reid_feature`.
+7. For 2D/3D keypoints, call `/gait-pose` and read `result.pose_2ds` / `result.pose_3ds`.
+
+Registered Python example:
+
+```bash
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
+export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
+```
+
+The local video-to-sequence demos are the recommended path when the caller wants
+control over local decoding, detection, tracking, and output folders. Direct
+`/v1/videos` upload is still supported for asynchronous server-side video
+parsing, but it is not the simplest path for agents that need per-sequence local
+files and JSON side by side.
+
 ## Task Types
 
 - `video`
@@ -182,6 +220,62 @@ Why a single input sequence returns a `sequences` array:
 - A client usually uploads one tracked-person sequence, but tracking IDs can drift when people cross or occlude each other. For example, the first half of one track may be person A, and after a crossing the same track ID may follow person B.
 - The backend sequence parser checks the uploaded track with ReID features. If it detects an ID switch or mixed-person frames, it splits the input at the switch point and returns multiple clean single-person output sequences.
 - Frames that are ambiguous or not suitable for a clean single-person output may be dropped.
+
+Recommended output layout for demos and agents:
+
+```text
+output/
+  video_name/
+    sequence_001/
+      frame_0001.jpg
+      frame_0002.jpg
+      meta.txt
+      result.json
+      pose_2d.csv
+      pose_3d.csv
+    summary.csv
+```
+
+Keep sequence images and the matching JSON result in the same folder. If an API
+result contains multiple split `sequences[]`, save each output sequence
+separately and number them in display order.
+
+## Gait Pose Coordinates
+
+`POST /v1/sequences/{task_id}/gait-pose` returns standalone 2D/3D keypoint
+results.
+
+Shape:
+
+```json
+{
+  "result": {
+    "pose_2ds": [
+      [x0, y0, score0, "...", x16, y16, score16]
+    ],
+    "pose_3ds": [
+      [x0, y0, z0, "...", x16, y16, z16]
+    ]
+  }
+}
+```
+
+Important coordinate rules:
+
+- `pose_2ds` outer array is frames. Each frame is `3*17` floats in COCO order: `x,y,score` repeated 17 times.
+- `pose_3ds` outer array is frames. Each frame is `3*17` floats in H36M order: `x,y,z` repeated 17 times.
+- Coordinates are relative to the uploaded sequence image, not the original full video frame.
+- The 2D origin is the uploaded image center.
+- If the uploaded image is a crop, map back to original video coordinates with the crop metadata from the local demo, such as `crop_x`, `crop_y`, `crop_w`, and `crop_h`.
+- Some frames may have missing or invalid values; callers should skip, filter, or interpolate those frames instead of treating the whole API call as failed.
+
+## Common Wrong Approaches
+
+- Wrong: use image similarity to decide whether two people are the same person. Correct: compare same-type `gait_feature`, `face_feature`, or `reid_feature`.
+- Wrong: upload a full video when you need local per-sequence folders and JSON. Correct: run local video-to-sequence preprocessing, then upload each sequence folder.
+- Wrong: read `result.gait_feature` at the top level. Correct: read `response.sequences[].gait_feature`.
+- Wrong: call sequence parsing and expect `pose_2ds` / `pose_3ds`. Correct: call the standalone `/gait-pose` endpoint.
+- Wrong: treat `pose_2ds` as original full-video coordinates. Correct: coordinates are relative to the uploaded sequence image.
 
 Delete endpoints:
 
