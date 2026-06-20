@@ -1,14 +1,10 @@
 # W-Agent API Reference
 
-先阅读：
-
-- 系统设计文档：[design.md](/home/watrix/tiandk/agent/gaitAgent/docs/design.md)
-- 开发文档：[development.md](/home/watrix/tiandk/agent/gaitAgent/docs/development.md)
-- 部署与测试文档：[testing.md](/home/watrix/tiandk/agent/gaitAgent/docs/testing.md)
-
 ## Overview
 
-This document defines the V1 public service built on top of [algorithms/sdk/agent.go](/home/watrix/tiandk/agent/gaitAgent/algorithms/sdk/agent.go).
+This document defines the W-Agent V1 public API for hosted video parsing,
+tracked person sequence parsing, identity features, human 2D/3D keypoints, and
+Object Search.
 
 Supported capabilities:
 
@@ -41,16 +37,6 @@ The service is split into these runtime components:
 - Object storage: input videos, input sequence frames, result JSON, gait images, face images
 - PostgreSQL: tasks, billing, payments, users, policies, audit events
 - Scheduler and cleanup worker: timeout transitions and object deletion
-
-Current storage implementation notes:
-
-- sequence task metadata supports an optional PostgreSQL repository when `GAIT_DB_DSN` is configured; otherwise it falls back to local JSON files
-- video task metadata supports an optional PostgreSQL repository when `GAIT_DB_DSN` is configured; otherwise it falls back to local JSON files
-- account metadata supports an optional PostgreSQL repository when `GAIT_DB_DSN` is configured; existing local account files are imported into the database on first switch if the database is empty
-- runtime config, admin audit logs, and admin stats snapshots support optional PostgreSQL repositories when `GAIT_DB_DSN` is configured
-- uploaded videos, uploaded sequence frames, and generated assets now go through the internal object-store abstraction
-- current default object-store implementation is local filesystem storage rooted at `GAIT_OBJECT_STORE_ROOT` or `<GAIT_DATA_DIR>/objects`
-- this prepares the code path for a later S3 / MinIO / OSS / COS backend without changing sequence/video business logic
 
 The SDK should not run inside the public HTTP process.
 
@@ -488,13 +474,7 @@ Environment variables:
 - `GAIT_FAILED_RETENTION_TTL`
 - `GAIT_DELETED_RECORD_TTL`
 
-Runtime config file:
-
-- default path: `<GAIT_DATA_DIR>/runtime/config.json`
-- override path: `GAIT_RUNTIME_CONFIG_PATH`
-- `PUT /v1/admin/runtime-config` updates this file and applies the new retention values to current API tasks immediately
-- worker refreshes the same file periodically and applies updated retention to video tasks without manual env edits
-- the same runtime config also stores pricing parameters for:
+Runtime configuration includes pricing parameters for:
   - `sequence_per_k_frames`
   - `sequence_per_sequence`
   - `video_per_k_frames`
@@ -502,7 +482,7 @@ Runtime config file:
   - `currency`
   - `cny_usd_exchange_rate`
   - `eurc_usd_exchange_rate`
-- runtime config also stores trial and 图搜万物 parameters:
+- Runtime configuration also stores trial and Object Search parameters:
   - `trial.enabled`
   - `trial.total_amount`
   - `trial.max_upload_bytes`
@@ -542,7 +522,7 @@ Gait Pose:
 - amount = `sequence_frame_count * gait_pose_per_k_frames / 1000`
 - default price is `¥0.01 / 1K frames`
 
-图搜万物:
+Object Search:
 
 - amount = `1 * locate_anything.price_per_image`
 - default registered-user price is `¥0.10 / image`
@@ -649,14 +629,14 @@ Example:
 ```json
 {
   "key": "gender",
-  "name": "性别",
+  "name": "gender",
   "raw_value": 180,
   "category_index": 0,
   "uncertain": false,
   "score": 0.8,
   "threshold": 0.57,
   "valid": true,
-  "label": "男"
+  "label": "male"
 }
 ```
 
@@ -665,7 +645,7 @@ Unknown example:
 ```json
 {
   "key": "gender",
-  "name": "性别",
+  "name": "gender",
   "raw_value": 50,
   "category_index": null,
   "uncertain": true,
@@ -1198,9 +1178,12 @@ from urllib.parse import urljoin
 
 import requests
 
-BASE_URL = os.getenv("W_AGENT_BASE_URL", "https://www.w-agent.cn")
-API_KEY = os.getenv("W_AGENT_API_KEY", "gak_replace_me")
+BASE_URL = os.getenv("W_AGENT_BASE_URL", "https://www.w-agent.cn/api")
+API_KEY = os.getenv("W_AGENT_API_KEY")
 IMAGE_DIR = Path(os.getenv("W_AGENT_IMAGE_DIR", "./sequence_frames"))
+
+if not API_KEY:
+    raise RuntimeError("Set W_AGENT_API_KEY")
 
 
 def request_json(session, method, path, **kwargs):
@@ -1349,7 +1332,7 @@ Frame and coordinate rules:
 - If uploaded images are person crops, map 2D coordinates back to the original video frame by adding local crop metadata such as `crop_x` and `crop_y`.
 - Invalid or low-quality frames may produce empty, null, or low-score pose entries depending on SDK output; clients should filter by array length and score.
 
-## 图搜万物 API
+## Object Search API
 
 ### POST /v1/object-search
 
@@ -1363,7 +1346,7 @@ Compatibility alias:
 
 Purpose:
 
-- Forwards an image and a text prompt to the configured 图搜万物 upstream service.
+- Forwards an image and a text prompt to the configured Object Search upstream service.
 - Charges the registered user's wallet with `locate_anything`.
 - The configured upstream endpoint should accept `{"image_base64":"...","prompt":"..."}` and return `{"boxes":[...],"raw_text":"..."}`.
 

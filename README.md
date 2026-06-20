@@ -4,21 +4,23 @@ W-Agent provides public APIs for video parsing, tracked person sequence parsing,
 identity features, ReID structured attributes, emotion output, and human 2D/3D
 keypoints.
 
-Global website: https://www.h-agent.ai
-
-China mainland website: https://www.w-agent.cn
-
-Default global API base URL:
+Websites:
 
 ```text
-https://www.h-agent.ai/api
+Global: https://www.h-agent.ai
+Mainland China: https://www.w-agent.cn
 ```
 
-China mainland API base URL:
+API base URLs:
 
 ```text
-https://www.w-agent.cn/api
+Mainland China: https://www.w-agent.cn/api
+Overseas entry: https://www.h-agent.ai/api
 ```
+
+Use the domain closest to your region. Overseas redirects to `w-agent.cn` are
+expected. Do not use `https://api.w-agent.cn` unless it is explicitly
+documented.
 
 Machine-readable API docs:
 
@@ -71,7 +73,32 @@ Set your API Key before running demos:
 
 ```bash
 export GAIT_REGISTERED_API_KEY='gak_your_api_key'
-export GAIT_API_BASE_URL='https://www.h-agent.ai/api'
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
+```
+
+For overseas users, `GAIT_API_BASE_URL='https://www.h-agent.ai/api'` is also
+supported.
+
+## Fastest Start
+
+Parse a local video into person sequences, upload each sequence, and call the
+registered Sequence API:
+
+```bash
+pip install requests opencv-python numpy
+export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
+python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
+```
+
+If you already have tracked person crop folders and only want identity
+similarities:
+
+```bash
+pip install requests
+export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
+python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
 ```
 
 ### Python
@@ -157,7 +184,7 @@ Set a test wallet private key before running:
 
 ```bash
 export GAIT_TEST_WALLET_PRIVATE_KEY='0x...'
-export GAIT_API_BASE_URL='https://www.h-agent.ai/api'
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
 ```
 
 Run:
