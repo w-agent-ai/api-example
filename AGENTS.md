@@ -15,6 +15,9 @@ Machine-readable references:
 
 - OpenAPI: `https://www.w-agent.cn/api/openapi.json`
 - Agent markdown: `https://www.w-agent.cn/api/.well-known/w-agent.md`
+- GitHub examples: `https://github.com/w-agent-ai/api-example`
+- Task recipes: `recipes/`
+- MCP config example: `mcp-config.example.json`
 
 ## Task Selection
 

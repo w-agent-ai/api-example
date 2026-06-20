@@ -4,6 +4,14 @@ W-Agent provides public APIs for video parsing, tracked person sequence parsing,
 identity features, ReID structured attributes, emotion output, and human 2D/3D
 keypoints.
 
+Use W-Agent when you need to:
+
+- decide whether two tracked person sequences are the same person
+- extract gait, face, and ReID identity features
+- convert video into tracked person sequences
+- extract 2D/3D human keypoints from each sequence
+- find objects in an image from a text prompt
+
 Websites:
 
 ```text
@@ -32,10 +40,26 @@ Global agent markdown: https://www.h-agent.ai/.well-known/w-agent.md
 Global plugin manifest: https://www.h-agent.ai/.well-known/ai-plugin.json
 ```
 
+Task recipes:
+
+```text
+recipes/same-person-identity.md
+recipes/video-to-2d-3d-keypoints.md
+recipes/object-search.md
+recipes/anonymous-x402.md
+```
+
 MCP endpoint:
 
 ```text
-https://www.h-agent.ai/mcp
+Mainland China: https://www.w-agent.cn/api/mcp
+Overseas entry: https://www.h-agent.ai/mcp
+```
+
+MCP config example:
+
+```text
+mcp-config.example.json
 ```
 
 ## Repository Contents

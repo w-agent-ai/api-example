@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "w-agent": {
+      "url": "https://www.w-agent.cn/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${W_AGENT_API_KEY}"
+      }
+    }
+  }
+}
