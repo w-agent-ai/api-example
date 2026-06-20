@@ -42,9 +42,13 @@ export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
 export GAIT_REGISTERED_API_KEY='gak_your_api_key'
 ```
 
-Use `https://www.w-agent.cn/api` as the public Base URL. Do not guess
-`https://api.w-agent.cn`; that hostname is not the documented API origin and may
-fail TLS hostname verification.
+Base URL:
+
+- Mainland China: `https://www.w-agent.cn/api`
+- Overseas entry: `https://www.h-agent.ai/api`
+- Overseas redirects to `w-agent.cn` are expected.
+- Do not guess `https://api.w-agent.cn`; that hostname is not documented and may
+  fail TLS hostname verification.
 
 ## Choose The Right Demo
 

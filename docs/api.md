@@ -94,14 +94,16 @@ Admin requests:
 
 ## Public Base URL
 
-Use this exact public API base URL:
+Use the public API base URL for your region:
 
 ```text
-https://www.w-agent.cn/api
+Mainland China: https://www.w-agent.cn/api
+Overseas entry: https://www.h-agent.ai/api
 ```
 
-Do not guess `https://api.w-agent.cn`; it is not the documented API origin and
-may fail TLS hostname verification in clients such as Python `requests`.
+Overseas redirects to `w-agent.cn` are expected. Do not guess
+`https://api.w-agent.cn`; it is not the documented API origin and may fail TLS
+hostname verification in clients such as Python `requests`.
 
 Registered calls use:
 
@@ -167,7 +169,7 @@ Common first-use errors:
 - `400 invalid request body` on `POST /v1/sequences`: you probably uploaded images directly; send only `{"frame_count": N}` first.
 - Missing or empty `frames` on `/parse`: pass back `object_key` values returned by create.
 - Empty `response.sequences`: the frames did not form a valid moving gait sequence.
-- TLS hostname mismatch: use `https://www.w-agent.cn/api`.
+- TLS hostname mismatch: use documented public origins such as `https://www.w-agent.cn/api` or `https://www.h-agent.ai/api`, not `https://api.w-agent.cn`.
 
 ## Recommended Workflow: Video To Person Sequences
 

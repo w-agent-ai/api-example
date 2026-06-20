@@ -12,6 +12,13 @@ Run:
 ```bash
 pip install requests opencv-python numpy eth-account web3 'x402[evm]'
 export GAIT_TEST_WALLET_PRIVATE_KEY='0x...'
-export GAIT_API_BASE_URL='https://www.h-agent.ai/api'
+export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
 python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_sequence_x402_demo.py /path/to/video.mp4
 ```
+
+Base URL:
+
+- Mainland China: `https://www.w-agent.cn/api`
+- Overseas entry: `https://www.h-agent.ai/api`
+- Overseas redirects to `w-agent.cn` are expected.
+- Do not use `https://api.w-agent.cn` unless it is explicitly documented.
