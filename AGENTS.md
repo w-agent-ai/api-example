@@ -27,6 +27,8 @@ Machine-readable references:
 - Video to identity features: use `/v1/videos` for server-side asynchronous
   parsing, or run `local_video_to_sequence_demo` first if you need local
   sequence folders and JSON files side by side.
+- Video to tracked person sequence folders: use
+  `recipes/video-to-person-sequences.md` and the local video-to-sequence demo.
 - Video to each person's 2D/3D keypoints: run local video-to-sequence
   preprocessing, upload each generated sequence, then call
   `POST /v1/sequences/{task_id}/gait-pose` for each sequence.
@@ -34,6 +36,8 @@ Machine-readable references:
   call `POST /v1/sequences/{task_id}/gait-pose`.
 - Image text search: call `POST /v1/object-search` with raw `image_base64` and
   `prompt`.
+- MCP-capable agent integration: use `recipes/agent-mcp.md` and
+  `mcp-config.example.json`.
 
 ## Important Boundaries
 

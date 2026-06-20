@@ -45,8 +45,10 @@ Task recipes:
 ```text
 recipes/same-person-identity.md
 recipes/video-to-2d-3d-keypoints.md
+recipes/video-to-person-sequences.md
 recipes/object-search.md
 recipes/anonymous-x402.md
+recipes/agent-mcp.md
 ```
 
 MCP endpoint:
