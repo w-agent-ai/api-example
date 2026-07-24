@@ -15,7 +15,7 @@
 #include <nlohmann/json.hpp>
 
 // Public API endpoint. Change this to your own deployment if needed.
-static const std::string kBaseURL = "https://www.w-agent.cn/api";
+static const std::string kBaseURL = "http://116.198.210.0:3005";
 
 // Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 static const std::string kAPIKey = "";
@@ -95,7 +95,7 @@ double dotProduct(const std::vector<double>& left, const std::vector<double>& ri
 }
 
 double fusedIdentitySimilarity(double faceSim, double gaitSim, double reidSim) {
-  double result = std::max(gaitSim, 0.1);
+  double result = std::max(gaitSim, 0.0);
   if (faceSim > 0.45)      result = std::max(gaitSim, 0.7);
   else if (faceSim > 0.35) result *= 1.1;
   else if (faceSim > 0.4)  result *= 1.1;

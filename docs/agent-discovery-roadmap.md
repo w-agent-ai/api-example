@@ -18,13 +18,18 @@ Already in place:
 - MCP config example in `api-example/mcp-config.example.json`
 - OpenAPI `servers` for Mainland China and overseas entry
 - OpenAPI and agent markdown link back to GitHub examples and recipes
+- Server-rendered SEO task pages under `/docs/`
+- `sitemap.xml` entries for the portal and SEO task pages
+- GitHub topics on `w-agent-ai/api-example`
 
 ## Phase 1: SEO Task Pages
+
+Status: completed.
 
 Goal: make W-Agent discoverable when users or agents search by task, not by
 brand.
 
-Add server-rendered, indexable pages:
+Server-rendered, indexable pages:
 
 - `/docs/video-to-2d-3d-keypoints-api`
 - `/docs/same-person-identity-api`
@@ -58,13 +63,15 @@ Important task keywords to include naturally:
 - text prompt object detection API
 - Object Search API
 
-Also add these pages to `sitemap.xml`.
+These pages are also included in `sitemap.xml`.
 
 ## Phase 2: GitHub Discovery
 
+Status: completed.
+
 Goal: make GitHub search and code agents find the examples repository.
 
-Set GitHub topics on `w-agent-ai/api-example`:
+GitHub topics on `w-agent-ai/api-example`:
 
 - `gait-recognition`
 - `person-reid`
@@ -87,7 +94,7 @@ Keep README first screen task-oriented:
 - extract 2D/3D human keypoints from each sequence
 - find objects in an image from a text prompt
 
-Add or keep task recipes:
+Task recipes:
 
 - `recipes/same-person-identity.md`
 - `recipes/video-to-2d-3d-keypoints.md`
@@ -195,12 +202,7 @@ https://www.w-agent.cn/api/mcp
 
 ## Recommended Next Step
 
-Start with Phase 1 and the missing Phase 2 recipes:
-
-1. Add SEO task pages and `sitemap.xml` entries.
-2. Set GitHub topics.
-3. Add `recipes/video-to-person-sequences.md`.
-4. Add `recipes/agent-mcp.md`.
-
-These are the fastest changes that improve discovery without introducing a new
-SDK or package maintenance burden.
+Start Phase 3 only after the public examples remain stable for real users and
+agents. The next implementation target is the Python SDK/CLI in the examples
+repository, beginning with sequence parsing, same-person comparison, and Object
+Search commands before packaging video-to-sequence workflows.

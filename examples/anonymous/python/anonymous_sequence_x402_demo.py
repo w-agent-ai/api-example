@@ -33,8 +33,8 @@ from x402.mechanisms.evm.exact.register import register_exact_evm_client
 
 # Fill these values directly when testing on another machine.
 EVM_PRIVATE_KEY = ""
-BASE_URL = "https://www.w-agent.cn/api"
-SEQ_DIR = Path(__file__).resolve().parents[2] / "sample_sequences" / "ID_0001"
+BASE_URL = "http://116.198.210.0:3005"
+SEQ_DIR = Path(__file__).resolve().parents[2] / "seqs" / "nonuser" / "day_cl01" / "40-day_cl01-22949" / "imgs"
 TIMEOUT = 120
 
 ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}

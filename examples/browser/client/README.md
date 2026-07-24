@@ -7,19 +7,53 @@ The browser client is one usage method. It is not tied to only trial usage:
 - Trial mode: no API key, consumes no-registration trial quota.
 - Registered mode: uses `Authorization: Bearer <api_key>`.
 
-Current browser capabilities:
+Current downloadable browser clients:
 
-- 图搜万物: image + text prompt, calls `/v1/object-search` or `/v1/public/object-search/trial`.
-- Sequence Parse: select multiple ordered image frames.
-- Gait Pose: select multiple ordered image frames.
-- Local video-to-sequence: select one local video. The browser decodes frames,
-  runs lightweight `persondet`, tracks people with IoU matching, crops all valid
-  sequences, and uploads each sequence to the Sequence API.
+- Gait Pose: select one local video, extract local person sequences, then call
+  the standalone `gait-pose` API for selected sequences. The browser renders
+  the returned `pose_2ds` into a local 2D video and renders `pose_3ds` on canvas.
+- Gait recognition: select two local videos, extract local person sequences,
+  call sequence parsing for identity features, and compare selected sequences
+  from video 1 against one or more selected sequences from video 2.
+- Local video-to-sequence: the browser decodes frames, runs lightweight
+  `persondet`, tracks people with IoU matching, crops all valid sequences, and
+  uploads each sequence to the relevant API.
+- 图搜万物 runs directly on the website playground and does not have a browser
+  client download.
 
-图搜万物 uses the same prompt examples as the public home page:
-`猫、公交车、穿红衣服的人` in Chinese and `cat, bus, person in red` in English.
-For one selected 图搜万物 image, the file picker shows only the filename; for
-multi-file capabilities it shows the first filename and the total file count.
+Default local extraction settings are independent by tool:
+
+- Gait Pose: parse every 1 frame, keep static sequences, minimum person box
+  64x128, minimum sequence length 20 frames.
+- Gait recognition: parse every 3 frames, filter static sequences, minimum
+  person box 64x128, minimum sequence length 20 frames.
+
+The Settings dialog stores Gait Pose and Gait recognition settings separately
+in browser local storage and, when a cache directory is selected, in
+`w_agent.json`.
+
+Billing prompts:
+
+- Manual mode asks for confirmation before uploading sequences and shows the
+  estimated sequence count and cost.
+- Auto mode does not ask for confirmation, but shows the total cost after
+  processing finishes.
+- Trial usage messages include the remaining free quota. The "sign in" link
+  opens `/portal#login` in a new tab so the current client page is not replaced.
+- Sequence cards keep short in-progress text such as `API calling` and
+  `Rendering video`.
+
+Browser video decoding depends on the codec inside the file, not just the file
+extension. H.264 MP4 is recommended. MP4 files encoded as `mp4v` / MPEG-4 Part 2
+may fail to decode in Chrome, Edge, and other modern browsers. Convert them
+before use:
+
+```bash
+ffmpeg -i input.mp4 -c:v libx264 -pix_fmt yuv420p -movflags +faststart -an output_h264.mp4
+```
+
+The language selector switches the browser client between Chinese and English
+without reloading the page.
 
 Files:
 
@@ -33,7 +67,10 @@ Files:
 - `persondet_wasm.js` / `persondet_wasm.wasm`: prebuilt WASM + SIMD detector
   produced by the build script when available.
 
-`/portal/demo-download?type=browser` returns a single HTML file with
+`/portal/demo-download?type=browser-pose&open=1` opens the standalone Gait Pose
+browser client inline. `/portal/demo-download?type=browser-gait&open=1` opens the
+standalone Gait Recognition browser client inline. Without `open=1`, the same
+routes return downloadable HTML attachments. Both are single HTML files with
 `persondet.js` and `persondet_weights.js` embedded. If `persondet_wasm.js` and
 `persondet_wasm.wasm` have been built, they are embedded too. The source package
 keeps files separate for maintainability.
@@ -58,9 +95,9 @@ Pose display notes:
   `canvas_x = image_width / 2 + x`, `canvas_y = image_height / 2 + y`.
 - `pose_3ds` uses H36M-order `x, y, z` repeated 17 times per frame with the
   center as the origin for browser-side rendering.
-- The browser draws point indexes on 2D/3D results. The 2D and 3D skeleton edge
-  lists can be edited in the result panel as `a-b` pairs, which is useful when
-  validating or changing keypoint order definitions.
+- The browser draws 2D keypoints onto sequence frames, records them into a local
+  WebM video with `MediaRecorder`, and renders 3D keypoints on a synchronized
+  canvas without point indexes.
 - Default 2D COCO edges are
   `0-1,0-2,1-3,2-4,5-7,7-9,6-8,8-10,5-6,5-11,6-12,11-13,13-15,12-14,14-16`.
 - Default 3D H36M edges are

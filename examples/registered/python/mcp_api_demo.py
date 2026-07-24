@@ -4,7 +4,7 @@ Complete MCP client demo for registered W-Agent users.
 
 The demo uses plain JSON-RPC 2.0 requests against:
 
-    https://www.w-agent.cn/api/mcp
+    http://116.198.210.0:3005/mcp
 
 It demonstrates the MCP flow end to end:
 
@@ -40,10 +40,10 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[3]
 
-MCP_URL = "https://www.w-agent.cn/api/mcp"
+MCP_URL = "http://116.198.210.0:3005/mcp"
 API_KEY = "gak_your_api_key"
 
-SEQ_DIR = ROOT / "examples" / "sample_sequences" / "ID_0001"
+SEQ_DIR = ROOT / "examples" / "seqs" / "user" / "day_cl02" / "19-day_cl02-44581" / "imgs"
 VIDEO_PATH = ROOT / "examples" / "video" / "0000.avi"
 RESULT_PATH = ROOT / "tmp" / "mcp_api_demo_result.json"
 

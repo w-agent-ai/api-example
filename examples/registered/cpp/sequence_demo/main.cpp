@@ -15,13 +15,13 @@
 #include <nlohmann/json.hpp>
 
 // Public API endpoint. Change this to your own deployment if needed.
-static const std::string kBaseURL = "https://www.w-agent.cn/api";
+static const std::string kBaseURL = "http://116.198.210.0:3005";
 
 // Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 static const std::string kAPIKey = "";
 
 // A sequence is a directory of cropped person images belonging to one track.
-static const std::string kSeqDir = "../../../sample_sequences/ID_0001";
+static const std::string kSeqDir = "../../../seqs/nonuser/day_cl01/40-day_cl01-22949/imgs";
 static constexpr double kSamePersonThreshold = 0.7;
 
 struct HTTPResponse {

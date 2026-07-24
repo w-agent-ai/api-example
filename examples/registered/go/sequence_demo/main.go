@@ -16,13 +16,13 @@ import (
 
 const (
 	// Public API endpoint. Change this to your own deployment if needed.
-	defaultBaseURL = "https://www.w-agent.cn/api"
+	defaultBaseURL = "http://116.198.210.0:3005"
 
 	// Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
 	defaultAPIKey = ""
 
 	// A sequence is a directory of cropped person images belonging to one track.
-	defaultSeqDir = "../../../sample_sequences/ID_0001"
+	defaultSeqDir = "../../../seqs/nonuser/day_cl01/40-day_cl01-22949/imgs"
 	timeout       = 10 * time.Minute
 
 	// When comparing two parsed sequences, compute face/gait/ReID dot products

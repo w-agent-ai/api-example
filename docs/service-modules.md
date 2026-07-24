@@ -94,7 +94,7 @@ Core services:
 Responsibilities:
 
 - persist no-registration trial counters
-- limit cumulative trial amount by IP hash
+- limit cumulative trial amount by IP hash and algorithm bucket
 - keep trial quota independent from x402 anonymous payment
 
 ### `internal/locateanything`
@@ -270,5 +270,5 @@ Recommended order:
 - multi-region deployment
 - AP2 as primary payment flow
 - multi-currency settlement
-- bulk batch sequence parsing
+- bulk batch gait sequence parsing
 - direct external URL ingestion

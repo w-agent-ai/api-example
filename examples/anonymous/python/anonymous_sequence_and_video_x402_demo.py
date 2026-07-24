@@ -45,14 +45,14 @@ ROOT = Path(__file__).resolve().parents[3]
 # 402 Payment Required challenge, signs an x402 payment payload with an EVM
 # wallet private key, and retries the same API operation with payment headers.
 EVM_PRIVATE_KEY = ""
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "https://www.w-agent.cn/api")
+BASE_URL = os.environ.get("GAIT_API_BASE_URL", "http://116.198.210.0:3005")
 
 # Sequence input:
-#   examples/sample_sequences contains small bundled sequence folders.
+#   examples/seqs may contain nested folders.
 #   Each leaf folder that directly contains images is treated as one sequence.
 # Video input:
 #   examples/video is scanned recursively for common video file extensions.
-SEQ_ROOT = ROOT / "examples" / "sample_sequences"
+SEQ_ROOT = ROOT / "examples" / "seqs"
 VIDEO_ROOT = ROOT / "examples" / "video"
 
 # All raw API responses and derived similarity reports are written here.
@@ -631,7 +631,7 @@ def score_or_zero(item: dict[str, Any]) -> float:
 
 def fused_identity_similarity(face_sim: float, gait_sim: float, reid_sim: float) -> float:
     """Fuse face, gait and ReID similarities. Scores above 0.7 likely indicate the same person."""
-    result = max(gait_sim, 0.1)
+    result = max(gait_sim, 0)
     if face_sim > 0.45:
         result = max(gait_sim, 0.7)
     elif face_sim > 0.35:

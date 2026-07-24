@@ -147,7 +147,6 @@ Order statuses:
 - `waived`
 - `expired`
 - `canceled`
-- `refunded`
 
 Payment statuses:
 
@@ -155,7 +154,6 @@ Payment statuses:
 - `confirmed`
 - `failed`
 - `expired`
-- `refunded`
 
 Rules:
 

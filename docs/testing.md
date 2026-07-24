@@ -126,10 +126,10 @@ GAIT_WORKER_SOCKET=/run/gaitagent/worker.sock \
 样本归档命名规则：
 
 ```text
-/data/gaitagent/sequence_samples/user/<user_id>/<sequence_task_id>/
-/data/gaitagent/sequence_samples/user/<user_id>/<video_task_id>/<sequence_id>/
-/data/gaitagent/sequence_samples/anonymous/<wallet_or_settlement_hash>/<sequence_task_id>/
-/data/gaitagent/sequence_samples/anonymous/<wallet_or_settlement_hash>/<video_task_id>/<sequence_id>/
+/data/gaitagent/sequence_samples/<YYYY-MM-DD>/user/<user_id>/<sequence_task_id>/
+/data/gaitagent/sequence_samples/<YYYY-MM-DD>/user/<user_id>/<video_task_id>/<sequence_id>/
+/data/gaitagent/sequence_samples/<YYYY-MM-DD>/anonymous/<wallet_or_settlement_hash>/<sequence_task_id>/
+/data/gaitagent/sequence_samples/<YYYY-MM-DD>/anonymous/<wallet_or_settlement_hash>/<video_task_id>/<sequence_id>/
 ```
 
 每个目录包含 `frames/`、`metadata.json`、`result.json`。`metadata.json` 会记录注册用户邮箱/API Key 信息/请求 IP/时间，匿名用户钱包地址/网络/代币/请求 IP/时间。目录名不直接使用邮箱、IP 或钱包地址；API Key 只保存前缀和 SHA-256 哈希，不保存完整明文。
@@ -219,6 +219,255 @@ go run -tags sdk ./cmd/videoprobe ./data/video/test.mp4
 
 ## 6. HTTP Demo 与示例脚本
 
+## 7. 使用记录大数据压测
+
+`cmd/usagebench` 用于直接压测 `usage_records` 分区写入、幂等去重、日汇总和典型查询性能，不经过算法 SDK 和 HTTP 层。
+
+它有两种模式：
+
+- `-mode=store`：默认模式，走 `usageledger.Store` 真实写入路径，适合测线上追加写入吞吐和幂等逻辑。
+- `-mode=sql-generate`：使用 SQL 批量生成历史明细，适合快速模拟一个月大数据后查询和报表性能；它不代表业务实时写入路径。
+
+先确认已执行数据库迁移：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+go run ./cmd/migrate
+```
+
+小规模冒烟：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+go run ./cmd/usagebench -n 10000 -workers 4 -batch 1000 -cleanup=true
+```
+
+按真实业务写入路径模拟一天百万条：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+go run ./cmd/usagebench -mode=store -n 1000000 -workers 16 -batch 50000 -day 2026-07-01 -cleanup=true
+```
+
+快速生成 30 天共 3000 万条历史明细，用于测试一个月后查询、运营看板和周报/月报：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+PGOPTIONS='-c jit=off' go run ./cmd/usagebench -mode=sql-generate -n 30000000 -days 30 -chunk 200000 -batch 1000000 -day 2026-07-01 -cleanup=false
+```
+
+如果只想先验证 SQL 批量模式是否正常，可以跑 100 万条：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+PGOPTIONS='-c jit=off' go run ./cmd/usagebench -mode=sql-generate -n 1000000 -days 30 -chunk 100000 -batch 1000000 -day 2026-07-01 -cleanup=true
+```
+
+关注输出：
+
+- `rate=... rows/s`：写入吞吐。
+- `failed=0`：应为 0。
+- `query="reason day group"`：按天、算法聚合查询耗时。
+- `query="user recent"`：按用户近期明细查询耗时。
+- `query="summary day"`：日报汇总查询耗时。
+
+压测会写入 `use_bench_...` 前缀的测试记录。默认 `-cleanup=true` 会删除本次明细、去重键，并把本次写入从 `daily_usage_summary` 中扣回。若要保留压测数据用于 EXPLAIN、运营看板或报表手工分析，可设置 `-cleanup=false`。
+
+### 7.1 重建 usage 汇总表
+
+`cmd/rebuild-usage-summary` 用于从 `usage_records` 明细重建小汇总表，适合排查或修复汇总异常时使用。它按 UTC 日期范围处理：
+
+- `daily_usage_summary`
+- `daily_api_key_usage_summary`
+- `daily_monthly_usage_summary`
+- `daily_public_identity_summary`
+
+默认是 dry-run，会在事务里删除并重算目标日期范围，然后回滚，只输出 before/after 统计：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+go run ./cmd/rebuild-usage-summary \
+  --start 2026-07-01 \
+  --end 2026-07-31
+```
+
+确认统计符合预期后再加 `--execute` 真正提交：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+go run ./cmd/rebuild-usage-summary \
+  --start 2026-07-01 \
+  --end 2026-07-31 \
+  --execute
+```
+
+`--start` 和 `--end` 都是包含当天的 UTC 日期。工具只重建汇总表，不修改 `usage_records` 明细和 `usage_record_keys` 幂等键。
+
+### 7.2 15 个月业务数据性能种子
+
+`cmd/perfseed` 用于重建一批接近真实业务形态的 15 个月性能测试数据，从 2025-05-01 开始，按月增长到约 19 万注册用户，并生成充值、钱包流水、套餐、使用记录和各类日汇总。它会走数据库批量写入，适合验证管理后台用户列表、财务页、运营看板和大表索引表现。
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+go run ./cmd/perfseed -reset=true -report tmp/perfseed_report.json
+```
+
+模拟用户写入 `account_users` 时使用 `metadata_json={"dataset":"perf_15m"}`。联系方式生成规则：
+
+- 手机号参考真实国内手机号形态，使用 `132/135/136/137/138/139/153/155/156/157/158/159/176/177/180/181/182/183/185/187/188/189/191/192/199` 等常见号段。
+- 邮箱使用常见域名，包含 `qq.com`、`163.com`、`126.com`、`yeah.net`、`sina.com`、`sohu.com`、`outlook.com`。
+- 模拟用户不强制同时有手机号和邮箱，约一部分同时填写，部分仅手机号，部分仅邮箱；空联系方式写入数据库 `NULL`，避免空字符串触发唯一索引冲突。
+- 所有生成的手机号和邮箱都保持唯一，便于管理后台按手机号、邮箱或用户 ID 做服务端搜索。
+
+线上容量规划建议：
+
+- 100 万条/天按当前字段和索引，保守估算约 `1-2GB/天`
+- 3000 万条/月约 `30-60GB/月`
+- 3.65 亿条/年建议按 `700GB-1TB` 预留，包含索引、膨胀和维护空间
+- 在线库和归档 PostgreSQL 库通过环境变量配置；机器磁盘路径不要放到后台数据库运行配置里
+
+如果 PostgreSQL 缺少 LLVM/JIT 运行库，大查询可能报：
+
+```text
+could not load library ".../llvmjit.so": libLLVM-*.so.*: cannot open shared object file
+```
+
+压测命令建议带 `PGOPTIONS='-c jit=off'`。生产库也可以对业务角色设置：
+
+```sql
+ALTER ROLE gaitagent SET jit = off;
+```
+
+### 7.3 使用记录归档测试
+
+其它机器上线时，推荐把归档库放到机械盘或大容量盘的 PostgreSQL tablespace。假设机械盘目录是 `/data`：
+
+```bash
+sudo install -d -m 0700 -o postgres -g postgres /data/postgresql/tablespaces/gaitagent_archive
+
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c \
+  "CREATE TABLESPACE gaitagent_archive_ts LOCATION '/data/postgresql/tablespaces/gaitagent_archive';"
+
+sudo -u postgres createdb -O gaitagent -T template0 -D gaitagent_archive_ts gaitagent_archive
+```
+
+配置 `/etc/gaitagent/gait-api.env`：
+
+```env
+GAIT_USAGE_ARCHIVE_ENABLED=true
+GAIT_USAGE_ARCHIVE_DSN=postgres://gaitagent:<password>@127.0.0.1:5432/gaitagent_archive?sslmode=disable
+GAIT_USAGE_ONLINE_RETENTION_MONTHS=3
+```
+
+先验证归档库能连接：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+PGOPTIONS='-c jit=off' psql "$GAIT_USAGE_ARCHIVE_DSN" -c "SELECT current_database(), current_user;"
+```
+
+当前测试机已使用：
+
+```text
+tablespace: gaitagent_archive_ts
+path: /data/postgresql/tablespaces/gaitagent_archive
+database: gaitagent_archive
+enabled: true
+```
+
+归档按月执行，不按天执行。手动 dry-run：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+PGOPTIONS='-c jit=off' go run ./cmd/usagearchive -dry-run
+```
+
+确认命中的分区正确后执行：
+
+```bash
+set -a
+source /etc/gaitagent/gait-api.env
+set +a
+PGOPTIONS='-c jit=off' go run ./cmd/usagearchive -execute
+```
+
+也可以临时指定归档库 DSN 和保留月数：
+
+```bash
+PGOPTIONS='-c jit=off' go run ./cmd/usagearchive \
+  -execute \
+  -archive-dsn 'postgres://gaitagent:***@127.0.0.1:5432/gaitagent_archive?sslmode=disable' \
+  -retention-months 3
+```
+
+归档后检查：
+
+```sql
+-- 在线库：旧月明细和幂等键应已删除，日汇总保留
+SELECT COUNT(*)
+FROM usage_records
+WHERE created_at >= '2025-06-01'
+  AND created_at < '2025-07-01';
+
+SELECT COUNT(*), COALESCE(SUM(call_count), 0)
+FROM daily_usage_summary
+WHERE usage_date >= '2025-06-01'
+  AND usage_date < '2025-07-01';
+
+-- 归档库：旧月明细可直接 SQL 查询
+SELECT COUNT(*) FROM usage_records_2025_06;
+SELECT partition_name, row_count, retained_key_count
+FROM usage_archive_manifests
+WHERE partition_name = 'usage_records_2025_06';
+```
+
+2026-07-02 在当前测试机上，生成 2025-06 单月 1 万条并归档到 PostgreSQL 归档库的验证结果：
+
+- 在线库 `usage_records_2025_06` 分区已删除
+- 在线库 2025-06 明细为 0
+- 在线库对应 `usage_record_keys` 保留 1 万条幂等键
+- 在线库 `daily_usage_summary` 保留 12 行，合计 1 万次调用
+- 归档库 `usage_records_2025_06` 有 1 万条，可直接 SQL 查询
+- 归档库 `usage_archive_manifests` 记录 `row_count=10000`、`retained_key_count=10000`
+
+2026-07-02 在当前测试机上，生成 2025-07 单月 3000 万条并归档到 PostgreSQL 归档库的参考结果：
+
+- SQL 批量造数：`30000000` 条，约 `1h05m56s`，平均约 `7583 rows/s`
+- 明细 count 查询：约 `20.36s`
+- 按天/算法聚合查询：约 `5.99s`
+- 按用户近期明细查询：约 `3.36ms`
+- `daily_usage_summary` 查询：约 `1ms`
+- 本次归档库方案 SQL 批量造数：`30000000` 条，约 `1h04m06s`，平均约 `7799 rows/s`
+- 本次归档前明细 count 查询：约 `16.81s`
+- 本次归档前按天/算法聚合查询：约 `4.77s`
+- 本次归档前按用户近期明细查询：约 `4.66ms`
+- 本次归档到 PostgreSQL 归档库：约 `19m`
+- 归档库 `usage_records_2025_07`：`30000000` 条
+- 归档库 `usage_archive_manifests`：`row_count=30000000`、`retained_key_count=30000000`
+- 归档后在线明细为 0，幂等键保留 3000 万条，`daily_usage_summary` 保留 360 行、合计 3000 万次调用
+- 归档月表带索引后大小约 `19GB`
+- 归档月表未建索引时，按 `user_public_id` 查询约 `4.43s`；补齐索引并 `ANALYZE` 后约 `45ms`
+
 当前 HTTP Demo 统一放在 [examples](/home/watrix/tiandk/agent/gaitAgent/examples) 下，按调用者类型区分：
 
 - [examples/registered](/home/watrix/tiandk/agent/gaitAgent/examples/registered)：注册用户，使用 `Authorization: Bearer <api_key>` 调用私有接口。
@@ -226,15 +475,13 @@ go run -tags sdk ./cmd/videoprobe ./data/video/test.mp4
 
 页面下载入口：
 
-- 用户门户：`https://www.w-agent.cn/portal`
+- 用户门户：`http://116.198.210.0:3005/portal`
 - 注册用户全部 Demo：`/portal/demo-download?type=registered`
 - 注册用户 Python Demo：`/portal/demo-download?type=registered-python`
 - 注册用户 C++ Demo：`/portal/demo-download?type=cpp`
 - 注册用户 Go Demo：`/portal/demo-download?type=go`
 - 匿名 x402 全部 Demo：`/portal/demo-download?type=anonymous`
 - 匿名 x402 Python Demo：`/portal/demo-download?type=anonymous-python`
-- 试用全部 Demo：`/portal/demo-download?type=trial`
-- 试用 Browser Demo：`/portal/demo-download?type=browser`，直接返回 HTML 文件，不打 zip。
 
 每个语言包按三类输入组织：
 
@@ -250,15 +497,15 @@ python3 examples/registered/python/sequence_and_video_api_demo.py
 
 默认配置：
 
-- API 地址：`https://www.w-agent.cn/api`
+- API 地址：`http://116.198.210.0:3005`
 - API Key：写在脚本顶部，调用 `/v1/sequences` 和 `/v1/videos`
-- 序列目录：`examples/sample_sequences`
+- 序列目录：`examples/seqs`
 - 视频目录：`examples/video`
 - 输出目录：`tmp/registered_batch_results`
 
 脚本行为：
 
-- 递归扫描 `examples/sample_sequences` 下所有“最末级图片目录”，每个目录作为一个序列。
+- 递归扫描 `examples/seqs` 下所有“最末级图片目录”，每个目录作为一个序列。
 - 递归扫描 `examples/video` 下所有视频文件。
 - 保存每个接口返回的完整 JSON。
 - 对序列结果计算 `gait_feature`、`reid_feature`、`face_feature` 的两两点积相似度。
@@ -353,16 +600,95 @@ python3 examples/anonymous/python/anonymous_sequence_x402_demo.py
 python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_sequence_x402_demo.py /path/to/video.mp4
 ```
 
-### 6.5 浏览器试用客户端
+### 6.5 在线浏览器客户端
 
-当前浏览器客户端是纯 HTML/JS，无需安装 Python 或 Node.js。它支持免注册试用和注册用户 API Key 两种身份，当前可调用图搜万物、步态序列解析和人体关节点接口，其中人体关节点是独立的 `gait-pose` 接口。
+当前浏览器客户端是纯 HTML/JS，无需安装 Python 或 Node.js。官网首页“人体2D/3D关节点”和“步态识别”按钮会在新页面打开对应在线客户端：双视频步态识别和人体 3D 关节点，其中人体关节点是独立的 `gait-pose` 接口。图搜万物直接在官网首页 playground 体验，不提供浏览器客户端下载。在线客户端 HTML 会内嵌浏览器端 `persondet` 代码和权重；如果已构建 WASM detector，也会一并内嵌。
+
+通过 `/portal/demo-download?type=browser-pose&open=1` 或 `/portal/demo-download?type=browser-gait&open=1` 打开的在线客户端不展示 API Key 输入。已登录用户会先用当前登录 session 读取 `/v1/me` 和 `/v1/me/api-keys`，自动选择 default 或第一个 active API Key 发起注册用户调用；未登录用户走免费试用接口。试用额度不足时提示登录后使用。客户端右上角未登录时显示“登录”，已登录时显示当前账号（优先邮箱，其次手机号、姓名和用户 ID）。
+
+在线客户端左侧上传区域下方会展示服务端预生成的示例视频：人体关节点示例使用 `/portal/examples/pose-demo/manifest.json` 中的 source video、序列抓拍、pose JSON 和 2D/3D 视频；步态识别示例使用 `/portal/examples/gait-demo/manifest.json` 中的视频1/视频2示例、序列抓拍和预提取 feature。用户点击示例视频可直接查看序列、播放关节点结果或进行相似度比对；上传自有视频时仍走浏览器本地解析和 API 调用流程。
+
+注册用户余额不足时，图搜万物、人体关节点和步态识别都会弹出居中的“余额不足”提示，并提供跳转到充值页的链接。人体关节点余额不足不会把失败序列显示成空结果：如果已有成功结果则回退到上一条，否则清空 2D/3D 展示区。步态识别余额不足会保留抓拍卡片并显示“api调用失败”，不删除序列；用户充值后再次点击比对会重新尝试提取失败序列的特征。
 
 ```bash
-curl -fsS "http://127.0.0.1:3006/portal/demo-download?type=browser" -o w-agent-browser-client.html
-open w-agent-browser-client.html
+curl -fsS "http://127.0.0.1:3006/portal/demo-download?type=browser-pose" -o w-agent-pose-browser-client.html
+curl -fsS "http://127.0.0.1:3006/portal/demo-download?type=browser-gait" -o w-agent-gait-browser-client.html
+open w-agent-pose-browser-client.html
+open w-agent-gait-browser-client.html
 ```
 
-浏览器版视频本地检测、跟踪、转序列还需要 WASM detector/tracker 包，尚未包含在该轻量客户端中。
+浏览器客户端会在本地做视频解码、检测、跟踪和序列裁剪。语言选择器可在中文和英文之间切换，无需刷新页面。
+
+### 6.6 首页示例结果生成 Smoke
+
+首页人体关节点和步态识别示例由 `cmd/portal-demo-generator` 从原视频生成静态资源。构建：
+
+```bash
+source /home/watrix/tiandk/agent/gaitAgent/algorithms/env.sh
+go build -tags sdk -o /tmp/portal-demo-generator ./cmd/portal-demo-generator
+```
+
+使用真实 SDK 视频生成：
+
+```bash
+source /home/watrix/tiandk/agent/gaitAgent/algorithms/env.sh
+/tmp/portal-demo-generator \
+  --pose-video /path/to/pose.mp4 \
+  --gait-video1 /path/to/video1.mp4 \
+  --gait-video2 /path/to/video2.mp4 \
+  --out /opt/gaitagent/portal/examples
+```
+
+如果首页步态识别需要多组视频1和视频2示例，使用目录模式：
+
+```bash
+/tmp/portal-demo-generator \
+  --gait-video1-dir /path/to/video1-examples \
+  --gait-video2-dir /path/to/video2-examples \
+  --out /opt/gaitagent/portal/examples \
+  --data-dir /opt/gaitagent/portal/demo-generator-work \
+  --max-gait-sequences 0 \
+  --timeout 30m \
+  --poll 2s
+```
+
+生成后确认 `gait-demo/manifest.json` 中包含 `video1_examples`、
+`video2_examples`，并且 `comparisons` 中有 `left_video_id` 和
+`right_video_id`。首页 demo 会让用户分别选择视频1、视频2示例；比对后只显示
+当前视频组合和当前视频1序列对应的相似度。
+
+如果首页人体关节点需要多个示例视频，使用目录模式：
+
+```bash
+/tmp/portal-demo-generator \
+  --pose-video-dir /path/to/pose-videos \
+  --frame-extractor /opt/gaitagent/bin/portal-frame-extractor \
+  --out /opt/gaitagent/portal/examples \
+  --data-dir /opt/gaitagent/portal/demo-generator-work \
+  --max-pose-sequences 6 \
+  --max-pose-frames 0 \
+  --fps 30 \
+  --timeout 30m \
+  --poll 2s
+```
+
+目录模式会直接从源视频抽帧生成关节点示例序列，不走 gait 视频解析，避免健身、站姿等静止动作被“有效步态”过滤掉。`--max-pose-frames 0` 表示全帧抽取，不跳帧；`--fps 30` 表示合成的 2D/3D 关节点视频按 30fps 写出。生成后的首页人体关节点 demo 会先展示示例视频列表；选择视频后展示该视频解析出的人体序列抓拍；选择抓拍后展示对应的 2D/3D 关节点结果。
+
+生成后检查：
+
+```bash
+curl -fsS http://127.0.0.1:3006/portal/examples/pose-demo/manifest.json
+curl -fsS http://127.0.0.1:3006/portal/examples/gait-demo/manifest.json
+curl -fsS http://127.0.0.1:3006/portal/examples/pose-demo/sequences/seq-001/pose-2d.mp4 -o /tmp/pose-2d.mp4
+curl -fsS http://127.0.0.1:3006/portal/examples/pose-demo/sequences/seq-001/pose-3d.mp4 -o /tmp/pose-3d.mp4
+```
+
+如果只想确认无 SDK 环境的失败提示：
+
+```bash
+go build -o /tmp/portal-demo-generator-nosdk ./cmd/portal-demo-generator
+/tmp/portal-demo-generator-nosdk
+```
 
 当前匿名 x402 支持的生产路线：
 
@@ -386,8 +712,8 @@ open w-agent-browser-client.html
 
 ### 序列图片
 
-- 注册用户批量 Demo 默认读取 `examples/sample_sequences`。
-- 匿名批量 Demo 默认读取 `examples/sample_sequences`。
+- 注册用户批量 Demo 默认读取 `examples/seqs`。
+- 匿名批量 Demo 默认读取 `examples/seqs`。
 - 目录可以有多级，最末级且包含图片文件的目录会被当成一个序列。
 
 ### 视频
@@ -443,7 +769,9 @@ ls -l /run/gaitagent/worker.sock
 
 - `GET /v1/public/videos/{task_id}`
 
-等 `status` 到 `succeeded_awaiting_payment_2` 再取结果。
+等 `status` 到 `succeeded` 再取结果。二阶段支付未完成时，状态响应会同时带
+`current_payment_phase = video_phase2`；真正扣费或返回支付挑战仍发生在
+`GET /v1/public/videos/{task_id}/result`。
 
 ## 9. 当前已知行为
 

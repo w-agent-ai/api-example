@@ -13,7 +13,7 @@ Supported capabilities:
 
 Supported payment modes:
 
-- Registered users: portal email/password login + prepaid wallet + API key for interface calls
+- Registered users: portal email or phone login + prepaid wallet + API key for interface calls
 - Anonymous users and agents: payment provider selected by deployment
 
 Access model:
@@ -44,8 +44,12 @@ URLs, `object_key` values, and final JSON response shapes.
 
 Portal login:
 
-- `POST /v1/users/register` with `email` and `password`
-- `POST /v1/users/login` with `email` and `password`
+- `POST /v1/users/register` with `email` + `email_code` + `password`, or `phone` + `sms_code` + `password`. The portal auto-detects whether the single account input is an email or phone number. If both email and phone are supplied, both enabled verification channels must pass before the account is created.
+- `POST /v1/users/login` with `identifier` + `password`; `identifier` may be email or phone. The response includes `access_token` for client self-service APIs.
+- `POST /v1/users/email-code` sends email verification codes for email registration, password reset, and binding email to a logged-in account
+- `POST /v1/users/sms-code` sends Aliyun SMS verification codes for phone registration and binding phone when SMS runtime config is enabled
+- `POST /v1/me/bind-email` binds a verified email to the current logged-in account
+- `POST /v1/me/bind-phone` binds a verified phone number to the current logged-in account
 - successful register/login sets cookie `gait_user_session`
 
 Registered API requests:
@@ -135,6 +139,8 @@ The sequence API flow is:
 3. Keep each returned `uploads[].object_key`.
 4. `POST /v1/sequences/{task_id}/parse` with `frames[].index` and `frames[].object_key`.
 5. Read features from `response.sequences[]`, for example `response.sequences[0].gait_feature`.
+
+Each sequence frame upload is rejected if the request body exceeds 20 MB; the server does not truncate oversized uploads.
 
 Similarity:
 
@@ -251,6 +257,8 @@ output/
 6. Service processes the video asynchronously.
 7. Service stores result summary and creates phase 2 billing.
 8. After phase 2 payment, the full result JSON is returned.
+
+Video `size_bytes` and the actual upload body are both capped at 512 MB. Oversized uploads are rejected with `413 payload_too_large`; they are not saved as truncated files.
 9. Media and results are deleted after retention expires.
 
 Delete endpoints:
@@ -348,11 +356,12 @@ Management endpoints:
 - `GET /portal/demo-download?type=go`
 - `GET /portal/demo-download?type=anonymous`
 - `GET /portal/demo-download?type=anonymous-python`
-- `GET /portal/demo-download?type=trial`
-- `GET /portal/demo-download?type=browser`
+- `GET /portal/demo-download?type=browser-pose`
+- `GET /portal/demo-download?type=browser-gait`
 
-`type=browser` returns a standalone HTML file directly. Other demo download
-types return ZIP packages.
+`type=browser-pose` and `type=browser-gait` return standalone HTML files
+directly. `type=browser` is kept as a compatibility alias for the gait browser
+client. Other demo download types return ZIP packages.
 
 GET endpoints also accept `HEAD` for lightweight URL probing. `HEAD` returns
 the same status and headers as `GET` with an empty response body.
@@ -365,6 +374,7 @@ the same status and headers as `GET` with an empty response body.
 - `GET /v1/admin/users`
 - `POST /v1/admin/users`
 - `GET /v1/admin/users/{user_id}`
+- `POST /v1/admin/users/batch`
 - `POST /v1/admin/users/{user_id}/topups`
 - `GET /v1/admin/users/{user_id}/ledger`
 - `GET /v1/admin/users/{user_id}/deposits`
@@ -381,6 +391,8 @@ User self-service endpoints:
 - `POST /v1/users/register`
 - `POST /v1/users/login`
 - `POST /v1/users/logout`
+- `GET /v1/api-keys`
+- `GET /v1/api-keys/current/status`
 - `GET /v1/me`
 - `GET /v1/me/wallet`
 - `GET /v1/me/ledger`
@@ -395,6 +407,16 @@ User self-service endpoints:
 - `GET /v1/me/sequences`
 - `POST /v1/object-search`
 
+`GET /v1/me/ledger` supports user-side usage-record filtering:
+
+- `limit`: positive integer, capped at `1000`; `all` is accepted for filtered views.
+- `start_date`, `end_date`: `YYYY-MM-DD`; when both are provided, the date span must not exceed 6 months.
+- `api_key_id`: restrict results to one API Key.
+- `reason_code` or `type`: restrict results to one billing reason, such as `sequence_once`, `gait_pose_once`, `video_phase1`, `video_phase2`, or `locate_anything`.
+- `keyword`: searches ledger reason/task/order/detail text.
+
+The user portal API Key usage dialog calls this endpoint with `api_key_id` and the current filters instead of loading all historical ledger rows in the browser.
+
 Public trial endpoints:
 
 - `POST /v1/public/object-search/trial`
@@ -405,9 +427,9 @@ Portal behavior:
 
 - `/portal` is both the public landing page and the logged-in user center.
 - Public users can read product introduction, supported anonymous payment routes, and download demos before registering.
-- Registered users log in with email and password, then manage balance, recharge, API Keys, usage records, and demo downloads.
+- Registered users log in with email or phone and password, then manage balance, recharge, API Keys, usage records, and demo downloads.
 - The visible product name in the portal is `W-Agent`.
-- API Keys are used only for API calls; portal login itself uses the email/password session cookie.
+- API Keys are used only for API calls; portal login itself uses the account/password session cookie.
 
 Query parameters:
 
@@ -427,11 +449,18 @@ Video task statuses:
 - `uploaded`
 - `awaiting_payment_1`
 - `processing`
-- `succeeded_awaiting_payment_2`
 - `succeeded`
 - `failed`
 - `expired`
 - `deleted`
+
+For compatibility with polling clients, `GET /v1/videos/{task_id}` and
+`GET /v1/public/videos/{task_id}` return `status = succeeded` once SDK
+processing has finished, even when internal phase 2 payment is still pending.
+When phase 2 is still pending, `current_payment_phase` is `video_phase2` and
+the result endpoint still performs wallet settlement or returns payment
+required. The internal database state remains `succeeded_awaiting_payment_2`
+until phase 2 is settled.
 
 Sequence task statuses:
 
@@ -472,13 +501,13 @@ Runtime configuration includes pricing parameters for:
   - `sequence_per_k_frames`
   - `sequence_per_sequence`
   - `video_per_k_frames`
-  - `gait_pose_per_k_frames`
+  - `gait_pose_per_sequence`
   - `currency`
   - `cny_usd_exchange_rate`
   - `eurc_usd_exchange_rate`
 - Runtime configuration also stores trial and Object Search parameters:
   - `trial.enabled`
-  - `trial.total_amount`
+  - `trial.total_amount` (CNY minor units; applied independently to each trial algorithm bucket)
   - `trial.max_upload_bytes`
   - `locate_anything.enabled`
   - `locate_anything.endpoint`
@@ -489,9 +518,12 @@ Pricing amounts configured in admin are stored as CNY minor units (fen). Registe
 
 Runtime behavior:
 
+- the API process runs retention cleanup every 30 seconds; the worker also runs sequence cleanup during its polling loop
 - when `expire_at` is reached, task status becomes `expired`
 - when `delete_after_at` is reached for `succeeded` or `failed`, artifacts are removed and task status becomes `deleted`
-- deleted task records are retained until `deleted_record_ttl` and then removed
+- when `delete_after_at` is reached for `expired`, artifacts and bulky details are removed and the task status becomes `deleted`
+- deleted task records are retained as lightweight summaries; uploaded media, result assets, tokens, and full result JSON are pruned
+- sample archives under `<GAIT_DATA_DIR>/sequence_samples` are separate long-lived copies and are not removed by task retention cleanup
 
 ## Billing Model
 
@@ -501,30 +533,38 @@ Video parsing:
 
 Video result fetch:
 
-- amount = `sequence_count * sequence_per_sequence + total_sequence_frames * sequence_per_k_frames / 1000`
+- amount = `sequence_count * sequence_per_sequence + rounded_sequence_frames * sequence_per_k_frames / 1000`
+- `rounded_sequence_frames` is rounded up to 100-frame blocks; the frame-fee amount is rounded up to the next CNY minor unit
+- when `sequence_per_k_frames = 0`, the sequence frame fee is disabled and omitted from billing details
 
 Sequence parsing:
 
 - registered-user amount = `max(output_sequence_count, 1) * sequence_per_sequence`
 - anonymous x402 amount = `input_sequence_count * sequence_per_sequence`
+- when `sequence_per_k_frames > 0`, both registered and anonymous sequence parsing also add the rounded sequence frame fee above
 - current Sequence API accepts one input sequence per task, so `input_sequence_count = 1`
 - `output_sequence_count` is the number of split single-person sequences returned by `GetSplitSeqFeature`; for registered users, no valid output still bills as `1` sequence
+- registered users also have a monthly sequence feature extraction limit. The limit counts actual successful output sequences with gait features, not the billing minimum. Default is 100000 sequences per user per calendar month and can be changed in Admin runtime config.
+- registered video parsing uses the same monthly feature extraction limit. The first request that creates a registered sequence or video task is rejected when the account has no usable CNY balance or has already reached the monthly feature limit.
 
 Gait Pose:
 
-- amount = `sequence_frame_count * gait_pose_per_k_frames / 1000`
-- default price is `¥0.01 / 1K frames`
+- amount = `1 * gait_pose_per_sequence`
+- when `sequence_per_k_frames > 0`, Gait Pose also adds the rounded sequence frame fee above
+- default price is `¥0.01 / sequence`
 
 Object Search:
 
 - amount = `1 * locate_anything.price_per_image`
 - default registered-user price is `¥0.10 / image`
-- trial calls do not charge wallet balance; they consume the runtime-configured trial total amount stored in `trial_usage` and append a zero-amount `usage_records` row with `source=trial`
-- portal homepage and browser-client trial calls share the same cumulative trial amount bucket for the same IP
+- trial calls do not charge wallet balance; they consume the runtime-configured per-algorithm trial amount stored in `trial_usage` and append a zero-amount `usage_records` row with `source=trial`
+- portal homepage and browser-client trial calls share the same IP bucket for the same algorithm
+- trial quota is limited by cumulative amount for the same IP and algorithm bucket; daily request and daily frame limits are not enforced
 - Gait Pose is a separate endpoint and is billed independently from full gait sequence parsing
 
 Registered user settlement:
 
+- `GET /v1/api-keys/current/status` checks whether a Bearer API Key is valid and currently usable without creating a task.
 - `POST /v1/sequences/{task_id}/parse` automatically charges the wallet before processing
 - `POST /v1/sequences/{task_id}/gait-pose` automatically charges the wallet before processing
 - `GET /v1/sequences/{task_id}/result` returns the stored sequence parse response for registered users without re-charging
@@ -532,27 +572,195 @@ Registered user settlement:
 - `POST /v1/videos/{task_id}/complete` retries registered user phase 1 wallet settlement after a topup
 - `GET /v1/videos/{task_id}/result` automatically attempts phase 2 wallet settlement before returning full result
 
+### POST /v1/users/login
+
+Request:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "secret"
+}
+```
+
+or:
+
+```json
+{
+  "identifier": "13800138000",
+  "password": "secret"
+}
+```
+
+Response includes the login session token. The same token is also set as the `gait_user_session` cookie for browser portal use.
+
+```json
+{
+  "access_token": "gus_xxx",
+  "token_type": "Bearer",
+  "user": {
+    "user_id": "usr_xxx",
+    "email": "user@example.com"
+  },
+  "api_keys": [],
+  "wallets": [],
+  "expires_at": "2026-07-06T00:00:00Z"
+}
+```
+
+Desktop clients can use:
+
+```http
+Authorization: Bearer gus_xxx
+```
+
+for login-session APIs such as `GET /v1/api-keys`. Task parse APIs still use `Authorization: Bearer gak_xxx`.
+
+### POST /v1/me/bind-email
+
+Requires the login session token or `gait_user_session` cookie. Send the verification code first with `POST /v1/users/email-code` using `purpose=bind_email`.
+
+```json
+{
+  "email": "user@example.com",
+  "email_code": "123456"
+}
+```
+
+### POST /v1/me/bind-phone
+
+Requires the login session token or `gait_user_session` cookie. Send the verification code first with `POST /v1/users/sms-code` using `purpose=bind_phone`.
+
+```json
+{
+  "phone": "13800138000",
+  "sms_code": "123456"
+}
+```
+
+### GET /v1/api-keys
+
+Returns the current logged-in user's active API Keys, including the full `gak_xxx` secret needed by desktop/browser clients to call task APIs.
+
+Authentication:
+
+- `Authorization: Bearer <access_token returned by /v1/users/login>`
+- Browser session cookie `gait_user_session`
+
+API Key Bearer tokens (`gak_xxx`) are rejected for this endpoint, because they must not be able to enumerate other full keys on the same account.
+
+Response:
+
+```json
+{
+  "user_id": "usr_xxx",
+  "api_keys": [
+    {
+      "id": "key_xxx",
+      "key_id": "key_xxx",
+      "name": "default",
+      "key": "gak_xxx",
+      "key_prefix": "gak_08885d26",
+      "valid": true,
+      "usable": true,
+      "balance_status": "ok",
+      "remaining_credits": 42183,
+      "currency": "CNY",
+      "wallet_balance": 40000,
+      "monthly_balance": 2183
+    }
+  ],
+  "count": 1
+}
+```
+
+Client handling:
+
+- `count=0`: show "当前账号没有可用 API Key".
+- `count=1`: auto-fill `api_keys[0].key`.
+- `count>1`: let the user choose by `name`, `key_prefix`, and balance status.
+- `usable=false` or `balance_status=insufficient_balance`: block paid operations until recharge or monthly plan purchase.
+
+### GET /v1/api-keys/current/status
+
+Use this endpoint when a desktop or browser client needs to validate a configured API Key before starting work. It does not create any task and does not charge the wallet.
+
+Authentication:
+
+- `Authorization: Bearer <api_key>`
+
+Rate limit:
+
+- Same client IP: up to 60 checks per minute.
+- Same submitted API Key token: up to 20 checks per minute.
+- When limited, the endpoint returns HTTP `429` with the same JSON shape and message `请求过于频繁，请稍后再试`.
+
+Valid and usable:
+
+```json
+{
+  "valid": true,
+  "usable": true,
+  "balance_status": "ok",
+  "remaining_credits": 1234,
+  "message": "",
+  "currency": "CNY",
+  "wallet_balance": 1000,
+  "monthly_balance": 234
+}
+```
+
+Valid but no usable balance:
+
+```json
+{
+  "valid": true,
+  "usable": false,
+  "balance_status": "insufficient_balance",
+  "remaining_credits": 0,
+  "message": "余额不足，请充值后继续使用"
+}
+```
+
+Invalid API Key:
+
+```json
+{
+  "valid": false,
+  "usable": false,
+  "balance_status": "unknown",
+  "remaining_credits": 0,
+  "message": "API Key 无效"
+}
+```
+
+Client handling:
+
+- `valid=false`: ask the user to re-enter the API Key.
+- `valid=true && usable=false`: block paid operations and ask the user to recharge or buy a monthly plan.
+- `valid=true && usable=true`: allow normal API use.
+
 Deposit workflow:
 
 - `POST /v1/me/deposits` creates a user deposit order
+- `POST /v1/me/monthly-plans` with a third-party payment channel creates the same kind of `account_deposits` checkout order with `detail.purchase_kind=monthly_plan`
 - `POST /v1/me/deposits/{deposit_id}/checkout` recreates or resumes a hosted checkout session
 - `GET /v1/me/deposits` lists the caller's deposit orders
 - `GET /v1/me/deposits/{deposit_id}` returns a single deposit order
 - `POST /v1/admin/users/{user_id}/deposits/{deposit_id}/settle` credits the wallet and marks the deposit `settled`
-- `POST /v1/payments/webhooks/stripe` handles Stripe checkout webhook settlement
-- `POST /v1/payments/webhooks/paddle` handles Paddle webhook settlement
 - `POST /v1/payments/webhooks/wechat_pay` handles WeChat Pay notify settlement
 - `POST /v1/payments/webhooks/alipay` handles Alipay notify settlement
-- `GET /payments/mock/checkout/{deposit_id}` opens the hosted mock checkout page for browser testing
-- `POST /v1/payments/mock/complete/{deposit_id}` completes the hosted mock checkout and settles the deposit
+- `POST /v1/payments/webhooks/crypto` handles third-party crypto provider IPN/webhook settlement
 - current implementation supports:
-  - `provider=manual`: create a pending offline/manual deposit order
-  - `provider=hosted_mock`: local hosted mock checkout for browser testing
-  - `provider=stripe`: hosted Stripe Checkout
-  - `provider=paddle`: hosted Paddle Checkout
-  - `provider=wechat_pay`: WeChat Pay H5 checkout
+  - `provider=wechat_pay`: WeChat Pay Native checkout
   - `provider=alipay`: Alipay page or WAP checkout
+  - `provider=crypto` / `channel=crypto`: create a third-party crypto provider payment order for the selected network/token; provider webhook confirmation credits the original deposit amount into the CNY wallet
   - if `provider` is omitted, the server selects a checkout provider from `channel` and deployment config
+  - manual/offline recharge orders are not supported; administrators can use backend top-up for balance adjustments
+
+Recharge checkout and monthly-plan checkout intentionally share the same checkout order creation path for Alipay and WeChat Pay. Provider/channel selection, CNY/USD handling, checkout session creation, and `account_deposits` persistence must stay identical for those hosted checkout channels. Crypto recharge also uses the checkout provider abstraction, but is limited to balance recharge: the provider creates a payment order and the verified provider webhook settles the deposit. Monthly-plan purchase does not use crypto directly; overseas users can recharge by crypto first, then buy plans with wallet balance.
+
+WeChat Pay settlement primarily relies on the WeChat asynchronous notify webhook. The API also supports WeChat order query by `out_trade_no` as a reconciliation path for delayed or missing webhooks; both paths use the same deposit lookup, amount validation, and `SettleDeposit` code. WeChat promotions can make `amount.payer_total` lower than the merchant order amount, so validation uses `amount.total` against `account_deposits.amount`; `amount.payer_total` is stored in `detail_json.wechat_pay_payer_total` only for audit. Alipay validation uses `total_amount` against `account_deposits.amount`; discount-related paid/receipt fields are not used as the order amount.
 
 `POST /v1/me/deposits` response shape:
 
@@ -561,16 +769,16 @@ Deposit workflow:
   "deposit": {
     "deposit_id": "dep_123",
     "status": "awaiting_checkout",
-    "provider": "hosted_mock",
-    "checkout_provider": "hosted_mock",
+    "provider": "alipay",
+    "checkout_provider": "alipay",
     "checkout_status": "open",
-    "checkout_url": "http://example.com/payments/mock/checkout/dep_123"
+    "checkout_url": "https://openapi.alipay.com/gateway.do?..."
   },
   "checkout": {
-    "provider": "hosted_mock",
+    "provider": "alipay",
     "status": "open",
-    "url": "http://example.com/payments/mock/checkout/dep_123",
-    "session_id": "chk_dep_123"
+    "url": "https://openapi.alipay.com/gateway.do?...",
+    "session_id": "ali_dep_123"
   }
 }
 ```
@@ -583,7 +791,7 @@ Pricing payload shape:
   "video_per_k_frames": 4000,
   "sequence_per_k_frames": 2000,
   "sequence_per_sequence": 50,
-  "gait_pose_per_k_frames": 10
+  "gait_pose_per_sequence": 1
 }
 ```
 
@@ -971,7 +1179,7 @@ Response:
 ```json
 {
   "task_id": "vid_xxx",
-  "status": "succeeded_awaiting_payment_2",
+  "status": "succeeded",
   "progress": {
     "percent": 100
   },
@@ -1016,9 +1224,9 @@ If phase 2 is unpaid, return HTTP `402`.
       "rate_per_sequence": 50,
       "sequence_amount": 400,
       "total_sequence_frames": 276,
-      "billable_frame_count": 276,
+      "billable_frame_count": 300,
       "rate_per_k_frames": 2000,
-      "frame_amount": 552
+      "frame_amount": 600
     },
     "challenge": {
       "mode": "mock",
@@ -1157,9 +1365,15 @@ Sequence result fields:
 - `sequences`: all split single-person sequences returned by `GetSplitSeqFeature`. One uploaded track can produce multiple outputs when tracking mixed different people or stray frames. This mainly handles tracking ID switches: when two people cross, the tracker may continue the same ID on another person; the backend uses ReID features to detect this and split the input at the switch point. Invalid or ambiguous frames may be dropped by the SDK.
 - `sequence_count`: number of returned `sequences`.
 - `frames`: frame IDs and optional boxes returned by the SDK for this output sequence. When the SDK does not return frame-level mapping, this field is an empty array and `frame_count` is `0`; clients should not assume it equals the uploaded input frame count.
+- `gait_feature`: for registered users, 512-dimensional gait features are rotated by the user's bound 512x512 orthogonal matrix before being returned. The same user gets stable rotated features across calls; different users get different rotations.
 - `emotions`: emotion output returned by the SDK.
 - `gait_images`: response-compatible field for per-frame gait crops. Public API responses currently keep it as an empty array and do not embed image bytes.
 - `gait_image` / `face_image`: signed task-scoped asset URLs. These URLs expire with the task retention window; after expiry or cleanup, downloading returns an error instead of another task's asset.
+
+Quota errors:
+
+- `429 monthly_sequence_feature_limit_exceeded`: the account has reached the configured monthly sequence feature extraction limit.
+- `409 wallet_insufficient_balance`: registered account has no usable recharge or monthly balance. Registered sequence/video task creation also returns this before upload starts.
 
 Runnable Python example:
 
@@ -1303,8 +1517,10 @@ Response:
       "currency": "USD",
       "pricing_basis": {
         "frame_count": 2,
-        "billable_frame_count": 2,
-        "rate_per_k_frames": 10
+        "sequence_count": 1,
+        "billable_sequences": 1,
+        "rate_per_sequence": 1,
+        "sequence_amount": 1
       }
     }
   }
@@ -1331,7 +1547,7 @@ Frame and coordinate rules:
 
 Authentication required:
 
-- `Authorization: Bearer <api_key>` or login session cookie
+- `Authorization: Bearer <api_key>`
 
 Compatibility alias:
 
@@ -1341,6 +1557,7 @@ Purpose:
 
 - Forwards an image and a text prompt to the configured Object Search upstream service.
 - Charges the registered user's wallet with `locate_anything`.
+- On the portal homepage, logged-in users with an active API Key use their default API Key for Object Search, so non-technical users can keep using the homepage experience after registration and top-up/monthly-plan purchase. The online browser Pose/Gait clients opened from the same logged-in portal session follow the same rule: logged-in users are billed through the default API Key, while non-logged-in users use the trial endpoints.
 - The configured upstream endpoint should accept `{"image_base64":"...","prompt":"..."}` and return `{"boxes":[...],"raw_text":"..."}`.
 
 Input and output rules:
@@ -1400,7 +1617,7 @@ Compatibility alias:
 Purpose:
 
 - Provides a quick no-registration trial path.
-- Consumes the runtime-configured trial quota by IP.
+- Consumes the runtime-configured trial amount quota by IP and algorithm bucket.
 - Does not charge wallet balance and does not use x402.
 
 Request:
@@ -1420,7 +1637,7 @@ Response includes the same `boxes` fields plus a `trial` object:
   "boxes": [],
   "trial": {
     "allowed": true,
-    "total_amount": 10000,
+    "total_amount": 10,
     "amount_used": 10,
     "remaining_amount": 9990
   }
@@ -1505,9 +1722,9 @@ Unpaid request may return HTTP `402`.
       "billable_sequences": 1,
       "rate_per_sequence": 50,
       "sequence_amount": 50,
-      "billable_frame_count": 4,
+      "billable_frame_count": 100,
       "rate_per_k_frames": 2000,
-      "frame_amount": 8
+      "frame_amount": 200
     },
     "challenge": {
       "mode": "mock",
@@ -1756,16 +1973,8 @@ Registered-user recharge checkout uses:
 - `GAIT_CHECKOUT_DEFAULT_PROVIDER`
 - `GAIT_PUBLIC_BASE_URL`
 
-Optional registered-user checkout providers:
+Registered-user checkout providers:
 
-- Stripe
-  - `GAIT_STRIPE_SECRET_KEY`
-  - `GAIT_STRIPE_WEBHOOK_SECRET`
-  - `GAIT_STRIPE_API_BASE_URL`
-- Paddle
-  - `GAIT_PADDLE_API_KEY`
-  - `GAIT_PADDLE_WEBHOOK_SECRET`
-  - `GAIT_PADDLE_API_BASE_URL`
 - WeChat Pay
   - `GAIT_WECHAT_PAY_APP_ID`
   - `GAIT_WECHAT_PAY_MERCHANT_ID`
@@ -1781,8 +1990,8 @@ Optional registered-user checkout providers:
 
 Provider selection rules:
 
-- `channel=manual_offline` creates a pending manual deposit order
 - `channel=alipay` prefers `alipay`
+- `channel=wechat_pay` prefers `wechat_pay`
+- `channel=crypto` creates a third-party crypto provider recharge order; the user must pay the exact provider order amount/address shown in the QR modal before expiry
 - `channel=wechat` or `channel=wechat_pay` prefers `wechat_pay`
-- `channel=card` prefers `stripe`, then `paddle`, then `hosted_mock`
-- region-specific wallet/bank methods such as `paypal`, `ideal`, `pix`, `upi`, `blik` prefer `paddle`, then `stripe`, then `hosted_mock`
+- `channel=manual_offline` and other offline/manual channels are rejected; PayPal, international card, Apple Pay, and Google Pay are not supported

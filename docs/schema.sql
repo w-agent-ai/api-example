@@ -1,3 +1,7 @@
+-- Deprecated reference only.
+-- The runtime database schema is defined by db/migrations/*.sql.
+-- Do not use this file to initialize or audit a live W-Agent database.
+
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     email TEXT NOT NULL,

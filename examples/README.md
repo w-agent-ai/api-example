@@ -14,8 +14,10 @@ parallel:
 - `registered/`: registered users who call APIs with an API Key.
 - `anonymous/`: anonymous agents who call public APIs with x402 payment.
 - `trial/`: no-registration browser trial demos limited by server-side IP quota.
-- `browser/`: browser clients. Browser is a usage method and can call trial or
-  registered-user APIs.
+- `browser/`: standalone browser clients for no-registration trial and local
+  visual demos. Registered-user ZIP packages no longer include these browser
+  client files; use the Python, C++, or Go packages for registered API-Key
+  integration examples.
 - `registered/python/local_video_to_sequence_demo/`: Python local video-to-sequence
   demo for registered users.
 - `registered/cpp/local_video_to_sequence_demo/`: C++ local video-to-sequence demo
@@ -25,7 +27,8 @@ parallel:
   demo.
 - `anonymous/python/local_video_to_sequence_demo/`: Python local video-to-sequence
   demo for anonymous x402 calls.
-- `browser/client/`: pure browser client for trial and registered calls.
+- `browser/client/`: pure browser client used by the trial/browser download
+  entrypoints.
 
 ## Registered User
 
@@ -211,7 +214,7 @@ no usable face is detected; this is not an API failure.
 
 The registered sequence demos also call `POST /v1/sequences/{task_id}/gait-pose`
 after uploading frames. Gait Pose is a standalone billable API, currently
-priced separately from full gait sequence parsing at `$0.10 / 1K frames`.
+priced separately from full gait sequence parsing at `¥0.01 / sequence`.
 
 Gait Pose coordinate notes:
 

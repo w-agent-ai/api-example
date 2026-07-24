@@ -87,8 +87,8 @@
 
 - `id`：数据库内部自增主键，主要给关系引用、联表、索引用
 - `public_id`：业务公开 ID，接口、日志、跨模块引用通常看这个
-- `metadata_json`：完整对象快照或保底上下文
-- `detail_json`：结构化细节补充，通常只放业务明细
+- `metadata_json`：结构化列之外的补充上下文
+- `detail_json`：结构化列之外的业务明细
 - `*_ref`：外部系统、外部支付、外部对象的引用
 - 金额字段如果是 `BIGINT`：
   - 当前账户体系按“最小货币单位整数”理解
@@ -249,7 +249,7 @@
 
 - `deleted_at`
   - 父表软删除时间
-  - 当前 `RemoveTask(...)` 时会更新
+  - 预留给 SQL 归档/软删除路径；当前任务 TTL 清理保留轻量任务摘要，不再依赖物理删除任务记录
 
 索引说明：
 
@@ -271,7 +271,7 @@
 
 - 视频任务子表
 - 保存视频任务的专有字段
-- 同时保留一份 `metadata_json` 作为完整快照
+- `metadata_json` 只保留结构化列之外的补充上下文
 
 当前是否真实使用：
 
@@ -363,8 +363,8 @@
   - 当前任务删除时间
 
 - `metadata_json`
-  - 视频任务完整业务对象快照
-  - 当前这是最重要的保底字段之一
+  - 结构化列之外的视频任务补充上下文
+  - 任务状态、归属、过期时间等以结构化列为准
 
 - `created_at`
   - 创建时间
@@ -447,8 +447,9 @@
   - 任务清理时间
 
 - `metadata_json`
-  - 完整序列任务快照
-  - 当前也是主要事实源之一
+  - 结构化列之外的序列任务补充上下文
+  - 上传列表、结果资产、账单上下文等动态对象仍保存在 JSON 中
+  - 兼容期内任务 `billing` 仍随任务 JSON 恢复运行态；`billing_orders` 用于查询、统计和对账
 
 - `created_at`
   - 创建时间
@@ -477,6 +478,7 @@
 当前是否真实使用：
 
 - 是，持续使用
+- 当前是任务账单的结构化同步表，用于查询、统计和对账；运行态任务 Billing 仍从任务 JSON 恢复
 
 字段说明：
 
@@ -580,7 +582,6 @@
     - `paid`
     - `expired`
     - `canceled`
-    - `refunded`
     - `waived`
 
 - `pricing_policy_id`
@@ -722,7 +723,12 @@
 
 - `email`
   - 用户邮箱
-  - 当前注册登录主标识
+  - 邮箱注册登录标识，手机号注册时可为空
+
+- `phone`
+  - 用户手机号
+  - 规范化为 E.164 格式，例如 `+8613800138000`
+  - 手机号注册登录标识，邮箱注册时可为空
 
 - `name`
   - 用户姓名或显示名
@@ -750,6 +756,18 @@
 - `password_hash`
   - 密码哈希
 
+- `gait_rotation_seed`
+  - 用户步态特征旋转矩阵种子
+  - 每个用户一个固定 seed；服务端按该 seed 确定性生成 512x512 正交矩阵，对 512 维步态特征做旋转后返回
+
+- `sequence_feature_month`
+  - 当前序列提特征计数所在自然月
+  - 格式：`YYYY-MM`
+
+- `sequence_feature_used`
+  - 当前自然月已成功提取步态特征的序列数
+  - 用于执行每用户每月序列/视频提特征上限
+
 - `created_at`
   - 注册时间
 
@@ -757,14 +775,97 @@
   - 用户资料更新时间
 
 - `metadata_json`
-  - 用户完整快照
+  - 结构化列之外的用户补充上下文
+  - 结构化列是事实源；加载时用户 ID、邮箱、手机号、推荐码和代理商归属等以结构化列为准
 
 索引说明：
 
 - `account_users_email_uidx`
   - 邮箱唯一
 
-### 5.2 `account_api_keys`
+- `account_users_phone_uidx`
+  - 手机号唯一
+
+代理商功能字段：
+
+- `sales_agent_public_id`
+  - 绑定的代理商业务 ID
+  - 为空表示不是代理商发展的客户
+
+- `referral_code`
+  - 用户注册时最终生效的 4 位推荐码
+  - 无效推荐码在用户确认继续注册后按空值保存
+
+- `referral_bound_at`
+  - 用户绑定代理商的时间
+
+### 5.2 `sms_verification_codes`
+
+用途：
+
+- 手机号注册的短信验证码记录
+- 同类邮箱验证码表为 `email_verification_codes`，字段结构基本一致，只是把 `phone` 换成 `email`
+
+当前是否真实使用：
+
+- 是，手机号注册、忘记密码、绑定手机号发送和校验短信时使用
+
+字段说明：
+
+- `public_id`
+  - 验证码业务 ID
+
+- `phone`
+  - 规范化手机号
+
+- `purpose`
+  - 验证码用途
+  - 当前支持：
+    - `register`
+
+- `code_hash`
+  - 验证码哈希，不保存明文验证码
+
+- `status`
+  - 验证码状态
+  - 当前常见值：
+    - `pending`
+    - `used`
+    - `expired`
+    - `failed`
+    - `send_failed`
+
+- `attempts`
+  - 已校验失败次数
+
+- `max_attempts`
+  - 最大校验失败次数
+
+- `request_ip`
+  - 请求来源 IP
+
+- `request_user_agent`
+  - 请求 User-Agent
+
+- `created_at`
+  - 创建时间
+
+- `expires_at`
+  - 过期时间
+
+- `used_at`
+  - 使用时间
+
+- `metadata_json`
+  - 预留扩展信息
+
+清理策略：
+
+- API 进程后台维护循环每天最多执行一次验证码清理
+- 删除 `created_at` 早于 90 天的 `sms_verification_codes` 和 `email_verification_codes`
+- 验证码明文不会落库，只保存 `code_hash`
+
+### 5.3 `account_api_keys`
 
 用途：
 
@@ -815,7 +916,8 @@
   - 删除或吊销时间
 
 - `metadata_json`
-  - API Key 完整快照
+  - 结构化列之外的 API Key 补充上下文
+  - 结构化列是事实源；认证和列表展示以结构化列为准
 
 索引说明：
 
@@ -825,7 +927,7 @@
 - `account_api_keys_user_idx`
   - 拉用户 API Key 列表
 
-### 5.3 `account_wallets`
+### 5.4 `account_wallets`
 
 用途：
 
@@ -863,14 +965,88 @@
   - 钱包最近更新时间
 
 - `metadata_json`
-  - 钱包完整快照
+  - 结构化列之外的钱包补充上下文
+  - 余额、套餐汇总和最近流水以结构化列为准
 
 索引说明：
 
 - `account_wallets_user_currency_uidx`
   - 保证一个用户同币种只有一个钱包
 
-### 5.4 `account_wallet_ledger`
+### 5.5 `account_subscriptions`
+
+用途：
+
+- 注册用户套餐实例表
+- 每次套餐购买或自动续费创建一条独立实例
+- 支持同一用户多个套餐、同一套餐多次购买、每个实例独立自动续费状态
+
+当前是否真实使用：
+
+- 是
+
+字段说明：
+
+- `public_id`
+  - 套餐实例业务 ID
+
+- `user_public_id`
+  - 所属用户 ID
+
+- `plan_id` / `plan_name`
+  - 后台配置中的套餐 ID 和购买时套餐名称快照
+
+- `currency`
+  - 套餐额度记账币种，当前为 CNY
+
+- `initial_amount`
+  - 初始发放套餐额度
+
+- `remaining_amount`
+  - 当前剩余套餐额度
+
+- `pay_amount`
+  - 购买或续费时对应的 CNY 支付金额
+
+- `status`
+  - `active` / `expired` 等
+
+- `auto_renew`
+  - 是否自动续费
+  - 同一用户同一 `plan_id` 最多一个 active 实例开启自动续费
+  - 套餐额度过期不会立即关闭自动续费；宽限期内仍可作为自动续费候选
+
+- `renewal_key`
+  - 最近一次自动续费尝试或成功的幂等 key，格式通常为本地日期，例如 `2026-07-10`
+  - 用于防止同一天重复扣款，不表示永久停止自动续费
+
+- `renewal_failure_count`
+  - 连续自动续费失败次数
+  - 成功续费或用户重新开启自动续费时清零
+  - 达到 3 次后关闭该套餐实例自动续费
+
+- `notify_before_key`
+  - 到期前提醒幂等 key
+
+- `expires_at`
+  - 当前套餐实例到期时间
+
+- `metadata_json`
+  - 结构化列之外的套餐实例补充上下文
+  - 套餐额度、续费状态、失败次数和到期时间以结构化列为准
+
+索引说明：
+
+- `account_subscriptions_user_idx`
+  - 用户套餐列表和扣费排序
+
+- `account_subscriptions_active_idx`
+  - active 套餐查询
+
+- `account_subscriptions_renew_idx`
+  - 自动续费候选查询
+
+### 5.6 `account_wallet_ledger`
 
 用途：
 
@@ -933,6 +1109,7 @@
   - 当前常见值：
     - `user_deposit`
     - `admin_topup`
+    - `admin_adjustment`
     - `sequence_once`
     - `video_phase1`
     - `video_phase2`
@@ -941,7 +1118,8 @@
   - 流水时间
 
 - `metadata_json`
-  - 流水完整快照
+  - 结构化列之外的流水补充上下文
+  - 金额、方向、原因、钱包和创建时间以结构化列为准
 
 索引说明：
 
@@ -951,7 +1129,10 @@
 - `account_wallet_ledger_user_idx`
   - 按用户看流水
 
-### 5.5 `account_deposits`
+- `account_wallet_ledger_reason_created_idx`
+  - 按 `reason_code + created_at` 查询财务页充值余额流水、套餐流水和导出样本
+
+### 5.6 `account_deposits`
 
 用途：
 
@@ -982,27 +1163,30 @@
   - 常见值：
     - `pending`
     - `awaiting_checkout`
+    - `payment_mismatch`
     - `settled`
 
 - `provider`
   - 充值提供方
   - 例如：
-    - `manual`
+    - `alipay`
+    - `wechat_pay`
+    - `crypto`
     - 某个 checkout provider
 
 - `channel`
   - 支付渠道
   - 例如：
-    - `manual`
-    - `card`
-    - 其他支付方式 code
+    - `alipay`
+    - `wechat_pay`
+    - `crypto`
 
 - `client_ref`
   - 客户端侧引用号
 
 - `settlement_ref`
   - 到账结算引用号
-  - 例如 webhook 回执号、mock 支付号
+  - 例如 webhook 回执号、第三方交易号
 
 - `provider_ref`
   - 第三方平台引用号
@@ -1049,10 +1233,16 @@
     - `checkout_provider`
     - `checkout_event_id`
     - `checkout_status`
+    - `checkout_reconciled`
+    - `wechat_pay_total`
+    - `wechat_pay_payer_total`
+    - `checkout_payment_mismatch`
     - `request_meta`
+  - 微信支付优惠/满减时，`wechat_pay_total` 是用于校验的商户订单金额，`wechat_pay_payer_total` 是优惠后的用户实付金额，仅作为审计信息。
 
 - `metadata_json`
-  - 充值单完整快照
+  - 结构化列之外的充值单补充上下文
+  - 金额、状态、支付渠道、provider 标识和到账时间以结构化列为准
 
 索引说明：
 
@@ -1065,6 +1255,12 @@
 - `account_deposits_user_idx`
   - 拉用户充值记录
 
+- `account_deposits_status_requested_idx`
+  - 按状态和申请时间查询财务页充值记录
+
+- `account_deposits_unpaid_expiry_idx`
+  - 支撑未支付在线充值单过期清理
+
 ## 6. 后台与运行配置表
 
 ### 6.1 `runtime_configs`
@@ -1072,7 +1268,8 @@
 用途：
 
 - 运行时配置表
-- 保存当前全局计费和清理策略
+- 保存当前全局运行配置
+- 不同配置类别拆成同表的不同行保存，避免只改一个类别时覆盖其他类别
 
 当前是否真实使用：
 
@@ -1082,589 +1279,52 @@
 
 - `config_key`
   - 配置键
-  - 当前实际只用：
-    - `runtime`
+  - 当前实际使用：
+    - `runtime:retention`
+    - `runtime:pricing`
+    - `runtime:payment:root`
+    - `runtime:payment:alipay`
+    - `runtime:payment:wechat_pay`
+    - `runtime:payment:crypto`
+    - `runtime:payment:x402`
+    - `runtime:portal`
+    - `runtime:worker`
+    - `runtime:reports`
+    - `runtime:monthly`
+    - `runtime:trial`
+    - `runtime:account`
+    - `runtime:locate_anything`
+    - `runtime:sms`
+  - `runtime:payment:crypto` 当前保存第三方加密货币充值配置：
+    - `enabled`
+    - `display_name`
+    - `provider`，当前支持 `nowpayments`
+    - `api_base_url`
+    - `api_key`
+    - `ipn_secret`
+    - `order_ttl_minutes`
+    - `assets`，每项包含 `network`、`network_name`、`token`、`token_name`、`provider_currency`
 
 - `updated_at`
   - 配置最后更新时间
 
 - `metadata_json`
   - 配置内容
-  - 当前包括：
-    - retention payload
-    - pricing payload
-      - `currency`
-      - `sequence_per_k_frames`
-      - `sequence_per_sequence`
-      - `video_per_k_frames`
-      - `gait_pose_per_k_frames`
-      - `cny_usd_exchange_rate`
-      - `eurc_usd_exchange_rate`
-    - `updated_at`
-
-### 6.2 `admin_audit_logs`
-
-用途：
-
-- 后台操作审计表
-
-当前是否真实使用：
-
-- 是，持续使用
-
-字段说明：
-
-- `audit_id`
-  - 审计记录业务 ID
-
-- `created_at`
-  - 操作发生时间
-
-- `action`
-  - 操作类型
-  - 当前常见值：
-    - `admin_user_created`
-    - `admin_wallet_topup`
-    - `admin_deposit_settled`
-    - `admin_runtime_config_updated`
-    - `admin_video_deleted`
-    - `admin_sequence_deleted`
-
-- `target_type`
-  - 操作目标类型
-  - 例如：
-    - `user`
-    - `deposit`
-    - `video_task`
-    - `sequence_task`
-    - `runtime_config`
-
-- `target_id`
-  - 目标业务 ID
-
-- `target_label`
-  - 目标的辅助展示标识
-  - 例如邮箱、用户 ID 等
-
-- `summary`
-  - 简短中文摘要
-
-- `actor_user_id`
-  - 操作人用户 ID
-
-- `actor_email`
-  - 操作人邮箱
-
-- `actor_name`
-  - 操作人姓名
-
-- `actor_auth_method`
-  - 认证方式
-  - 例如 session 或 admin token
-
-- `detail_json`
-  - 结构化业务细节
-
-- `request_meta_json`
-  - 请求侧元数据
-  - 当前通常包括：
-    - IP
-    - User-Agent
-    - 地域信息
-
-- `metadata_json`
-  - 审计完整快照
-
-索引说明：
-
-- `admin_audit_logs_created_idx`
-  - 按时间倒序查
-
-- `admin_audit_logs_action_idx`
-  - 按动作类型筛选
-
-- `admin_audit_logs_target_idx`
-  - 按目标对象筛选
-
-### 6.3 `admin_stats_snapshots`
-
-用途：
-
-- 后台时间序列采样表
-- 给看板图表提供历史数据
-
-当前是否真实使用：
-
-- 是，持续使用
-
-字段说明：
-
-- `snapshot_at`
-  - 采样时刻
-  - 同时是主键
-
-- `metadata_json`
-  - 快照内容
-  - 当前通常包括：
-    - 用户数
-    - 活跃用户数
-    - 视频任务统计
-    - 序列任务统计
-    - 收入统计
-    - CPU/内存/磁盘/worker 在线状态
-
-索引说明：
-
-- `admin_stats_snapshots_time_idx`
-  - 按时间范围取样
-
-## 7. 当前较少实际使用或预留的表
-
-这一节很重要，因为你以后看库时会看到它们，但别默认它们就是当前主事实源。
-
-### 7.1 `users`
-
-用途：
-
-- 早期规范化用户主表
-
-当前是否真实使用：
-
-- 基本不作为当前账户体系主表使用
-
-字段含义：
-
-- `id`
-  - 内部用户主键
-
-- `email`
-  - 邮箱
-
-- `name`
-  - 用户名
-
-- `status`
-  - 状态
-
-- `created_at`
-  - 创建时间
-
-- `updated_at`
-  - 更新时间
-
-- `deleted_at`
-  - 软删除时间
-
-备注：
-
-- 当前真实用户体系已经切到 `account_users`
-
-### 7.2 `api_keys`
-
-用途：
-
-- 早期规范化 API Key 表
-
-当前是否真实使用：
-
-- 基本不作为当前主表使用
-
-字段含义：
-
-- `id`
-  - 内部主键
-
-- `user_id`
-  - 指向 `users.id`
-
-- `key_prefix`
-  - 前缀
-
-- `key_hash`
-  - 哈希
-
-- `name`
-  - 名称
-
-- `status`
-  - 状态
-
-- `last_used_at`
-  - 最后使用时间
-
-- `expires_at`
-  - 过期时间
-
-- `created_at`
-  - 创建时间
-
-- `revoked_at`
-  - 吊销时间
-
-备注：
-
-- 当前真实 API Key 主表是 `account_api_keys`
-
-### 7.3 `wallets`
-
-用途：
-
-- 早期规范化钱包表
-
-当前是否真实使用：
-
-- 基本不作为当前主表使用
-
-字段含义：
-
-- `id`
-  - 内部钱包主键
-
-- `user_id`
-  - 指向 `users.id`
-
-- `currency`
-  - 币种
-
-- `available_balance`
-  - 可用余额
-
-- `locked_balance`
-  - 锁定余额
-
-- `version`
-  - 乐观锁版本号预留
-
-- `updated_at`
-  - 更新时间
-
-备注：
-
-- 当前真实钱包主表是 `account_wallets`
-
-### 7.4 `wallet_ledger`
-
-用途：
-
-- 早期规范化钱包流水表
-
-当前是否真实使用：
-
-- 基本不作为当前主表使用
-
-字段含义：
-
-- `id`
-  - 自增主键
-
-- `wallet_id`
-  - 指向 `wallets.id`
-
-- `task_id`
-  - 可关联 `tasks.id`
-
-- `order_id`
-  - 可关联 `billing_orders.id`
-
-- `direction`
-  - 借贷方向
-
-- `amount`
-  - 变动金额
-
-- `currency`
-  - 币种
-
-- `balance_before`
-  - 变动前余额
-
-- `balance_after`
-  - 变动后余额
-
-- `reason_code`
-  - 变动原因
-
-- `created_at`
-  - 变动时间
-
-备注：
-
-- 当前真实流水主表是 `account_wallet_ledger`
-
-### 7.5 `task_assets`
-
-用途：
-
-- 规范化任务资产表
-- 理想上保存每个任务产物文件的结构化索引
-
-当前是否真实使用：
-
-- 当前主流程基本不写
-
-字段含义：
-
-- `id`
-  - 自增主键
-
-- `task_id`
-  - 所属任务
-
-- `asset_role`
-  - 资产角色
-  - 例如输入视频、步态图、人脸图、结果文件等
-
-- `sequence_id`
-  - 若某个资产属于视频中的某个序列，可记录序列 ID
-
-- `frame_index`
-  - 若资产与某帧相关，可记录帧号
-
-- `object_key`
-  - 对象存储 key
-
-- `mime_type`
-  - MIME 类型
-
-- `size_bytes`
-  - 大小
-
-- `sha256`
-  - 哈希
-
-- `status`
-  - 资产状态
-
-- `created_at`
-  - 创建时间
-
-- `deleted_at`
-  - 删除时间
-
-### 7.6 `task_results`
-
-用途：
-
-- 规范化任务结果表
-
-当前是否真实使用：
-
-- 当前主流程基本不写
-
-字段含义：
-
-- `task_id`
-  - 所属任务
-
-- `schema_version`
-  - 结果 schema 版本
-
-- `result_object_key`
-  - 结果 JSON 在对象存储中的 key
-
-- `summary_json`
-  - 结果摘要
-
-- `released_at`
-  - 结果对外释放时间
-
-- `created_at`
-  - 创建时间
-
-### 7.7 `pricing_policies`
-
-用途：
-
-- 规范化计费策略表
-
-当前是否真实使用：
-
-- 当前不是主事实源
-
-需要注意：
-
-- `db/migrations/000001_init.up.sql` 里定义的是更复杂的 formula 结构
-- `docs/schema.sql` 里写成了简化字段
-- 这说明这个表的设计经历过调整，但当前运行时并没有真正依赖它
-
-字段按迁移含义理解：
-
-- `id`
-  - 主键
-
-- `name`
-  - 策略名称
-
-- `task_type`
-  - 适用任务类型
-
-- `owner_type`
-  - 适用拥有者类型
-
-- `currency`
-  - 币种
-
-- `version`
-  - 版本号
-
-- `video_phase1_formula_json`
-  - 视频一期计费公式
-
-- `video_phase2_formula_json`
-  - 视频二期计费公式
-
-- `sequence_once_formula_json`
-  - 序列单次计费公式
-
-- `gait_pose_once_formula_json`
-  - Gait Pose 单次计费公式。当前迁移表里没有单独列，运行时配置通过 `runtime_configs.metadata_json.pricing.gait_pose_per_k_frames` 生效。
-
-- `enabled`
-  - 是否启用
-
-- `created_at`
-  - 创建时间
-
-备注：
-
-- 当前真正生效的计费配置主要来自：
-  - `runtime_configs.metadata_json`
-
-### 7.8 `retention_policies`
-
-用途：
-
-- 规范化保留策略表
-
-当前是否真实使用：
-
-- 当前不是主事实源
-
-字段含义：
-
-- `id`
-  - 主键
-
-- `name`
-  - 策略名
-
-- `task_type`
-  - 适用任务类型
-
-- `owner_type`
-  - 适用拥有者类型
-
-- `version`
-  - 版本号
-
-- `upload_pending_ttl_sec`
-  - 上传等待时长，秒
-
-- `payment_phase1_ttl_sec`
-  - 一期支付等待时长，秒
-
-- `processing_timeout_sec`
-  - 处理超时，秒
-  - 这个字段出现在早期规范化设计里
-  - 当前运行时 policy 结构已经没有单独暴露它
-
-- `payment_phase2_ttl_sec`
-  - 二期支付等待时长，秒
-
-- `result_retention_ttl_sec`
-  - 结果保留时长，秒
-
-- `failed_retention_ttl_sec`
-  - 失败任务保留时长，秒
-
-- `deleted_record_retention_ttl_sec`
-  - 删除记录保留时长，秒
-
-- `enabled`
-  - 是否启用
-
-- `created_at`
-  - 创建时间
-
-备注：
-
-- 当前真正生效的保留策略主要来自：
-  - `runtime_configs.metadata_json`
-
-## 8. 常见字段的统一理解
-
-### 8.1 关于 `public_id`
-
-如果表里既有 `id` 又有 `public_id`，一般这样理解：
-
-- `id` 给数据库内部引用
-- `public_id` 给业务和外部接口使用
-
-你平时排障优先看：
-
-- `public_id`
-
-### 8.2 关于 `metadata_json`
-
-当前项目大量使用 `metadata_json`，它不是噪音字段。
-
-它的意义是：
-
-- 保留完整业务对象快照
-- 当结构化列不够用时还能回放上下文
-- 让文件模式和 SQL 模式之间迁移更平滑
-
-但代价是：
-
-- 同一份信息会在结构化列和 JSON 里同时出现
-
-### 8.3 关于金额字段
-
-当前有两种金额存储风格：
-
-- 账户体系：
-  - 常用 `BIGINT`
-  - 一般按最小货币单位整数理解
-
-- 账单/支付体系：
-  - 常用 `NUMERIC(20, 8)`
-  - 更通用，兼容小数金额
-
-所以你做对账时不要把这两类字段直接混成同一种含义。
-
-### 8.4 关于状态字段
-
-当前状态主要分三类：
-
-- 任务状态：
-  - `created`
-  - `uploaded`
-  - `awaiting_payment`
-  - `awaiting_payment_1`
-  - `processing`
-  - `succeeded_awaiting_payment_2`
-  - `succeeded`
-  - `failed`
-  - `expired`
-  - `deleted`
-
-- 账单状态：
-  - `pending`
-  - `paid`
-  - `expired`
-  - `canceled`
-  - `refunded`
-  - `waived`
-
-- 充值单状态：
-  - `pending`
-  - `awaiting_checkout`
-  - `settled`
-
-不同表的 `status` 不要混读。
-
-## 9. 建议的查库顺序
-
+  - 内容随 `config_key` 变化
+  - `runtime:account` 保存注册用户策略：
+    - `signup_bonus_amount`：首次普通充值到账后赠送到充值余额的 CNY 分金额，默认 `500`；字段名保留历史命名，业务语义为首充赠送
+    - `monthly_sequence_feature_limit`：每用户每月通过序列或视频成功提取步态特征的序列数上限，默认 `100000`，`0` 表示不限制
+  - `runtime:sms` 保存阿里云短信配置：
+    - `enabled`
+    - `provider`
+    - `access_key_id`
+    - `access_key_secret`
+    - `sign_name`
+    - `template_code`：验证码模板 Code
+    - `notification_template_code`：代理商收益通知模板 Code
+    - `renewal_notice_template_code`：套餐续费提醒模板 Code
+    - `renewal_failure_template_code`：套餐续费失败模板 Code
+    - `endpoint`
 如果你以后只是想快速定位问题，可以按这个顺序看表。
 
 ### 9.1 查用户与余额
@@ -1694,7 +1354,7 @@
 
 1. `trial_usage`
 
-`trial_usage` 按 IP 哈希累计免注册试用请求次数、帧数和消耗金额。它不记录明文 IP，只记录哈希值与最近访问时间；实际限额以累计消耗金额为准。`fingerprint_hash` 字段保留用于兼容旧数据，新试用记录统一写入空指纹分桶。
+`trial_usage` 按 IP 哈希和算法分桶累计免注册试用请求次数、帧数和消耗金额。它不记录明文 IP，只记录哈希值与最近访问时间；实际限额以同一算法分桶的累计消耗金额为准。`fingerprint_hash` 字段当前用于保存算法分桶，例如 `op:object_search`、`op:gait_pose`、`op:gait_sequence`；旧数据中的空指纹分桶仅保留兼容。
 
 ## 10. 我对当前数据库设计的总结
 

@@ -5,12 +5,13 @@
     scoreThreshold: 0.30,
     nmsThreshold: 0.45,
     resizeWidth: 640,
-    defaultJump: 2,
+    defaultJump: 3,
     fallbackFps: 25,
     fpsSampleFrames: 12,
     decodePlaybackRate: 1,
     maxAge: 25,
     minFrames: 20,
+    requireMoving: true,
     minBoxWidth: 64,
     minBoxHeight: 128,
     matchIou: 0.30,
@@ -358,9 +359,8 @@
   }
 
   function chooseJump(videoFps, cfg) {
-    if (!videoFps || !Number.isFinite(videoFps)) return Math.max(1, cfg.defaultJump);
-    if (videoFps <= 15) return 1;
-    return Math.max(2, Math.floor(videoFps / 10));
+    const jump = Number.parseInt(cfg && cfg.defaultJump, 10);
+    return Number.isFinite(jump) && jump > 0 ? jump : 3;
   }
 
   async function estimateVideoFps(video, cfg) {
@@ -368,12 +368,12 @@
     const samples = [];
     try {
       video.currentTime = 0;
+      await video.play();
       let previous = null;
       const target = Math.max(4, cfg.fpsSampleFrames || 12);
       const started = performance.now();
       while (samples.length < target && performance.now() - started < 1200 && !video.ended) {
-        await video.play();
-        const metadata = await nextVideoFrame(video);
+        const metadata = await nextVideoFrame(video, 800);
         const mediaTime = Number.isFinite(metadata.mediaTime) ? metadata.mediaTime : video.currentTime;
         if (previous !== null && mediaTime > previous) samples.push(mediaTime - previous);
         previous = mediaTime;
@@ -470,13 +470,19 @@
     const frames = [];
     for (let i = 0; i < keepFrames.length; i += 1) {
       const item = keepFrames[i];
-      frames.push({ index: i, frame_id: item.frame_id, content_base64: item.content_base64 });
+      frames.push({ index: i, frame_id: item.frame_id, time: item.time, content_base64: item.content_base64 });
     }
+    const firstFrame = keepFrames[0] || {};
+    const lastFrame = keepFrames[keepFrames.length - 1] || firstFrame;
     return {
       sequence_id: seq.seq_id,
       track_id: seq.track_id,
       source_frames: seq.frames.length,
       uploaded_frames: frames.length,
+      start_frame: firstFrame.frame_id || 0,
+      end_frame: lastFrame.frame_id || 0,
+      start_time: Number.isFinite(firstFrame.time) ? firstFrame.time : 0,
+      end_time: Number.isFinite(lastFrame.time) ? lastFrame.time : 0,
       frames,
       boxes: keepFrames.map((item) => ({
         x1: item.det[0],
@@ -508,44 +514,98 @@
     });
   }
 
-  function nextVideoFrame(video) {
+  function nextVideoFrame(video, timeoutMs) {
     return new Promise((resolve, reject) => {
       if (typeof video.requestVideoFrameCallback !== "function") {
         reject(new Error("requestVideoFrameCallback unsupported"));
         return;
       }
-      const callbackID = video.requestVideoFrameCallback((_, metadata) => {
-        video.pause();
-        resolve(metadata || {});
-      });
+      let done = false;
+      let timeout = 0;
+      const finish = (fn, value) => {
+        if (done) return;
+        done = true;
+        if (timeout) clearTimeout(timeout);
+        fn(value);
+      };
+      const callbackID = video.requestVideoFrameCallback((_, metadata) => finish(resolve, metadata || {}));
+      if (timeoutMs > 0) {
+        timeout = setTimeout(() => {
+          if (typeof video.cancelVideoFrameCallback === "function") video.cancelVideoFrameCallback(callbackID);
+          finish(reject, new Error("video frame callback timed out"));
+        }, timeoutMs);
+      }
       video.onerror = () => {
         if (typeof video.cancelVideoFrameCallback === "function") video.cancelVideoFrameCallback(callbackID);
-        reject(new Error("视频解码失败，浏览器不支持该格式。"));
+        finish(reject, new Error("视频解码失败，浏览器不支持该格式。"));
       };
     });
+  }
+
+  function isVideoFrameTimeout(error) {
+    return /video frame callback timed out/i.test(error && error.message || "");
   }
 
   async function extractLocalVideoSequence(file, options) {
     const cfg = { ...DEFAULT_CONFIG, ...((options && options.config) || {}) };
     const progress = options && options.progress ? options.progress : function () {};
     const onSequence = options && options.onSequence ? options.onSequence : null;
+    const signal = options && options.signal;
     let detectorBackend = "";
     let decodeMode = "";
+    let detector = null;
+    let video = null;
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      if (video) {
+        video.pause();
+        URL.revokeObjectURL(video.src);
+      }
+      if (detector && detector.destroy) detector.destroy();
+    };
+    const abortError = () => {
+      try {
+        return new DOMException("视频解析已停止。", "AbortError");
+      } catch (_) {
+        const error = new Error("视频解析已停止。");
+        error.name = "AbortError";
+        return error;
+      }
+    };
+    const checkAborted = () => {
+      if (signal && signal.aborted) throw abortError();
+    };
     const reportProgress = (event) => {
       if (event && event.stage === "detector") detectorBackend = event.backend || "";
       if (event && event.stage === "decode") decodeMode = event.mode || "";
       progress(event);
     };
-    const detector = await createDetector(cfg, reportProgress);
-    const video = document.createElement("video");
+    checkAborted();
+    detector = await createDetector(cfg, reportProgress);
+    try {
+      checkAborted();
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
+    video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
     video.preload = "metadata";
     video.src = URL.createObjectURL(file);
-    await new Promise((resolve, reject) => {
-      video.onloadedmetadata = resolve;
-      video.onerror = () => reject(new Error("视频解码失败，浏览器不支持该格式。"));
-    });
+    try {
+      checkAborted();
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = resolve;
+        video.onerror = () => reject(new Error("视频解码失败，浏览器不支持该格式。"));
+      });
+      checkAborted();
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
     const fps = await estimateVideoFps(video, cfg);
     const jump = chooseJump(fps, cfg);
@@ -583,6 +643,16 @@
     let rejectedStatic = 0;
     const timings = { seek_ms: 0, draw_ms: 0, detect_ms: 0, crop_ms: 0, track_ms: 0 };
 
+    async function emitSequence(seq) {
+      let exported = await exportSequence(seq, cfg);
+      if (onSequence) {
+        const handled = await onSequence(exported, completed.length + 1);
+        if (handled) exported = handled;
+      }
+      reportProgress({ stage: "sequence_ready", current: completed.length + 1, sequence: exported });
+      return exported;
+    }
+
     async function appendFrame(seq, frameID, det) {
       const [x1, y1, x2, y2] = det.box;
       const detRect = [Math.round(x1), Math.round(y1), Math.round(x2 - x1), Math.round(y2 - y1)];
@@ -591,10 +661,11 @@
       const cropStart = performance.now();
       const contentBase64 = await cropToBase64(fullCanvas, crop, cfg);
       timings.crop_ms += performance.now() - cropStart;
-      seq.frames.push({ frame_id: frameID, score: det.score, det: detRect, crop, content_base64: contentBase64 });
+      seq.frames.push({ frame_id: frameID, time: duration > 0 ? Math.max(0, Math.min(duration, (frameID - 1) / fps)) : 0, score: det.score, det: detRect, crop, content_base64: contentBase64 });
     }
 
-    async function finishTrack(track) {
+    async function finishTrack(track, options) {
+      const force = options && options.force;
       const seq = seqs.get(track.seqID);
       if (!seq) return null;
       seqs.delete(track.seqID);
@@ -602,21 +673,17 @@
         rejectedShort += 1;
         return null;
       }
-      if (!isSequenceMoving(rawW, rawH, seq.frames.map((f) => f.det), cfg)) {
+      if (!force && cfg.requireMoving !== false && !isSequenceMoving(rawW, rawH, seq.frames.map((f) => f.det), cfg)) {
         rejectedStatic += 1;
         return null;
       }
-      const exported = await exportSequence(seq, cfg);
+      const exported = await emitSequence(seq);
       completed.push(exported);
-      if (onSequence) {
-        onSequence(exported, completed.length);
-      }
-      reportProgress({ stage: "sequence_ready", current: completed.length, sequence: exported });
       return exported;
     }
 
     const completed = [];
-    const totalFramesEstimate = duration > 0 ? Math.ceil(duration / step) : 0;
+    const totalFramesEstimate = duration > 0 ? Math.ceil(duration * fps) : 0;
 
     function resetExtractionState() {
       tracks.length = 0;
@@ -630,6 +697,7 @@
     }
 
     async function processCurrentFrame(frameID) {
+      checkAborted();
       const drawStart = performance.now();
       fullCtx.drawImage(video, 0, 0, rawW, rawH);
       detCtx.drawImage(video, 0, 0, detW, detH);
@@ -681,35 +749,58 @@
       timings.track_ms += performance.now() - trackStart;
       processed += 1;
       if (processed % 5 === 0) {
-        reportProgress({ processed, total: totalFramesEstimate, activeTracks: tracks.length, detections: dets.length, timings });
+        reportProgress({ processed, total: totalFramesEstimate, current_frame: frameID, activeTracks: tracks.length, detections: dets.length, timings });
+        checkAborted();
         await new Promise((resolve) => setTimeout(resolve, 0));
+        checkAborted();
       }
+      return dets.length;
     }
 
     async function processWithContinuousDecode() {
       if (typeof video.requestVideoFrameCallback !== "function") return false;
       reportProgress({ stage: "decode", mode: "continuous" });
       video.currentTime = 0;
+      const originalPlaybackRate = video.playbackRate || 1;
+      try {
+        video.playbackRate = 1;
+      } catch (_) {
+        // Some browsers reject playbackRate changes; decoding still works at 1x.
+      }
       await video.play();
       let nextProcessTime = 0;
       let frameID = 1;
       try {
-        while (!video.ended) {
-          const decodeStart = performance.now();
-          const metadata = await nextVideoFrame(video);
+      while (!video.ended) {
+        checkAborted();
+        const decodeStart = performance.now();
+          let metadata;
+          try {
+            metadata = await nextVideoFrame(video, 2500);
+          } catch (error) {
+            if (duration > 0 && video.currentTime >= duration - 0.35) break;
+            if (isVideoFrameTimeout(error)) return false;
+            throw error;
+          }
+          checkAborted();
           timings.seek_ms += performance.now() - decodeStart;
+          video.pause();
           const mediaTime = Number.isFinite(metadata.mediaTime) ? metadata.mediaTime : video.currentTime;
           if (duration > 0 && mediaTime + 0.0005 < nextProcessTime) {
             await video.play();
             continue;
           }
           await processCurrentFrame(frameID);
+          checkAborted();
           nextProcessTime += step;
           frameID += jump;
           if (duration > 0 && nextProcessTime > duration) break;
           await video.play();
         }
       } finally {
+        try {
+          video.playbackRate = originalPlaybackRate;
+        } catch (_) {}
         video.pause();
       }
       return true;
@@ -718,9 +809,11 @@
     async function processWithSeekDecode() {
       reportProgress({ stage: "decode", mode: "seek" });
       for (let t = 0, frameID = 1; duration <= 0 || t <= duration; t += step, frameID += jump) {
+        checkAborted();
         if (duration > 0) {
           const seekStart = performance.now();
           await seekVideo(video, Math.min(t, Math.max(0, duration - 0.001)));
+          checkAborted();
           timings.seek_ms += performance.now() - seekStart;
         }
         await processCurrentFrame(frameID);
@@ -728,37 +821,52 @@
       }
     }
 
-    const usedContinuous = await processWithContinuousDecode();
-    while (tracks.length) await finishTrack(tracks.shift());
-    if (usedContinuous && completed.length === 0 && duration > 0) {
-      resetExtractionState();
-      decodeMode = "seek_fallback";
-      await processWithSeekDecode();
-    } else if (!usedContinuous) {
-      await processWithSeekDecode();
+    try {
+      const usedContinuous = await processWithContinuousDecode();
+      checkAborted();
+      if (usedContinuous) {
+        while (tracks.length) await finishTrack(tracks.shift());
+      }
+      if (!usedContinuous) {
+        resetExtractionState();
+        decodeMode = "seek_fallback";
+        await processWithSeekDecode();
+      } else if (usedContinuous && completed.length === 0 && duration > 0) {
+        resetExtractionState();
+        decodeMode = "seek_fallback";
+        await processWithSeekDecode();
+      }
+      checkAborted();
+      while (tracks.length) await finishTrack(tracks.shift());
+      if (!completed.length) throw new Error("未提取到满足长度和运动条件的人员序列，请换一个包含清晰行人的视频。");
+      reportProgress({ stage: "done", processed, total: totalFramesEstimate, detected_sequences: completed.length });
+      return {
+        sequences: completed,
+        meta: {
+          video_width: rawW,
+          video_height: rawH,
+          processed_frames: processed,
+          detected_sequences: completed.length,
+          uploaded_sequences: completed.length,
+          uploaded_frames: completed.reduce((sum, seq) => sum + seq.uploaded_frames, 0),
+          detector_backend: detectorBackend,
+          decode_mode: decodeMode,
+          decode_playback_rate: cfg.decodePlaybackRate,
+          rejected_short_sequences: rejectedShort,
+          rejected_static_sequences: rejectedStatic,
+          timings_ms: timings,
+        },
+        boxes: completed.flatMap((seq) => seq.boxes),
+      };
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        while (tracks.length) await finishTrack(tracks.shift(), { force: true });
+        reportProgress({ stage: "aborted", processed, total: totalFramesEstimate, detected_sequences: completed.length });
+      }
+      throw error;
+    } finally {
+      cleanup();
     }
-    while (tracks.length) await finishTrack(tracks.shift());
-    URL.revokeObjectURL(video.src);
-    if (detector.destroy) detector.destroy();
-    if (!completed.length) throw new Error("未提取到满足长度和运动条件的人员序列，请换一个包含清晰行人的视频。");
-    return {
-      sequences: completed,
-      meta: {
-        video_width: rawW,
-        video_height: rawH,
-        processed_frames: processed,
-        detected_sequences: completed.length,
-        uploaded_sequences: completed.length,
-        uploaded_frames: completed.reduce((sum, seq) => sum + seq.uploaded_frames, 0),
-        detector_backend: detectorBackend,
-        decode_mode: decodeMode,
-        decode_playback_rate: cfg.decodePlaybackRate,
-        rejected_short_sequences: rejectedShort,
-        rejected_static_sequences: rejectedStatic,
-        timings_ms: timings,
-      },
-      boxes: completed.flatMap((seq) => seq.boxes),
-    };
   }
 
   window.WAgentPersonDet = {
