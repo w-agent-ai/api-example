@@ -602,13 +602,15 @@ python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_se
 
 ### 6.5 在线浏览器客户端
 
-当前浏览器客户端是纯 HTML/JS，无需安装 Python 或 Node.js。官网首页“人体2D/3D关节点”和“步态识别”按钮会在新页面打开对应在线客户端：双视频步态识别和人体 3D 关节点，其中人体关节点是独立的 `gait-pose` 接口。图搜万物直接在官网首页 playground 体验，不提供浏览器客户端下载。在线客户端 HTML 会内嵌浏览器端 `persondet` 代码和权重；如果已构建 WASM detector，也会一并内嵌。
+当前浏览器客户端是纯 HTML/JS，无需安装 Python 或 Node.js。官网首页“人体2D/3D关节点”和“步态识别”按钮会在新页面打开对应在线客户端：双视频步态识别和人体 3D 关节点，其中人体关节点是独立的 `gait-pose` 接口。图搜万物直接在官网首页 playground 体验，不提供浏览器客户端下载。通过 `open=1` 在线打开时，HTML 会内嵌浏览器端 `persondet` 主逻辑和 WASM detector，但不会内嵌较大的 JS fallback 权重，避免浏览器在 WASM 可用时仍解析备用权重导致启动变慢。不带 `open=1` 的兼容下载响应会保留 JS fallback 权重。
 
 通过 `/portal/demo-download?type=browser-pose&open=1` 或 `/portal/demo-download?type=browser-gait&open=1` 打开的在线客户端不展示 API Key 输入。已登录用户会先用当前登录 session 读取 `/v1/me` 和 `/v1/me/api-keys`，自动选择 default 或第一个 active API Key 发起注册用户调用；未登录用户走免费试用接口。试用额度不足时提示登录后使用。客户端右上角未登录时显示“登录”，已登录时显示当前账号（优先邮箱，其次手机号、姓名和用户 ID）。
 
 在线客户端左侧上传区域下方会展示服务端预生成的示例视频：人体关节点示例使用 `/portal/examples/pose-demo/manifest.json` 中的 source video、序列抓拍、pose JSON 和 2D/3D 视频；步态识别示例使用 `/portal/examples/gait-demo/manifest.json` 中的视频1/视频2示例、序列抓拍和预提取 feature。用户点击示例视频可直接查看序列、播放关节点结果或进行相似度比对；上传自有视频时仍走浏览器本地解析和 API 调用流程。
 
 注册用户余额不足时，图搜万物、人体关节点和步态识别都会弹出居中的“余额不足”提示，并提供跳转到充值页的链接。人体关节点余额不足不会把失败序列显示成空结果：如果已有成功结果则回退到上一条，否则清空 2D/3D 展示区。步态识别余额不足会保留抓拍卡片并显示“api调用失败”，不删除序列；用户充值后再次点击比对会重新尝试提取失败序列的特征。
+
+浏览器客户端、Python demo、C++ demo 和 Go demo 的本地 person detector 使用同一套检测模型。更新 C++ `persondet_weights.cpp` 后，应使用 `scripts/convert_persondet_weights.py` 同步生成 Python `persondet_weights.py` 和浏览器 `persondet_weights.js`，并通过 `/opt/emsdk/emsdk_env.sh` 激活 Emscripten 后执行 `examples/browser/client/build_persondet_wasm.sh` 重建 WASM。当前默认检测参数为 `score_threshold = 0.35`、`nms_threshold = 0.50`。
 
 ```bash
 curl -fsS "http://127.0.0.1:3006/portal/demo-download?type=browser-pose" -o w-agent-pose-browser-client.html

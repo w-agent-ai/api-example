@@ -16,8 +16,8 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
 
 @dataclass
 class Config:
-    score_threshold: float = 0.30
-    nms_threshold: float = 0.45
+    score_threshold: float = 0.35
+    nms_threshold: float = 0.50
     resize_width: int = 640
     default_jump: int = 2
     min_effective_fps: float = 10.0
@@ -40,6 +40,10 @@ def round_to_multiple(value: float, multiple: int = 32) -> int:
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.clip(x, -50.0, 50.0)))
+
+
+def silu(x: np.ndarray) -> np.ndarray:
+    return np.where(x >= 8.0, x, np.where(x <= -8.0, 0.0, x * sigmoid(x))).astype(np.float32, copy=False)
 
 
 def resize_for_detector(image: np.ndarray, resize_width: int):
@@ -101,7 +105,7 @@ class PersonDetectorNumpy:
         y = x.reshape(-1, x.shape[2]) @ weight.T + bias
         y = y.reshape(x.shape[0], x.shape[1], weight.shape[0]).astype(np.float32, copy=False)
         if relu:
-            np.maximum(y, 0.0, out=y)
+            y = silu(y)
         return y
 
     def depthwise3x3(self, x: np.ndarray, name: str, stride: int, relu: bool = True) -> np.ndarray:
@@ -120,7 +124,7 @@ class PersonDetectorNumpy:
             )
             y[:, :, ch] = filtered[::stride, ::stride] + bias[ch]
         if relu:
-            np.maximum(y, 0.0, out=y)
+            y = silu(y)
         return y
 
     def dwblock(self, x: np.ndarray, name: str, stride: int) -> np.ndarray:
@@ -142,8 +146,7 @@ class PersonDetectorNumpy:
         patches = np.stack(cols, axis=2)
         y = patches.reshape(-1, 27) @ weight.T + bias
         y = y.reshape(out_h, out_w, 16).astype(np.float32, copy=False)
-        np.maximum(y, 0.0, out=y)
-        return y
+        return silu(y)
 
     @staticmethod
     def upsample_nearest(x: np.ndarray, out_h: int, out_w: int) -> np.ndarray:
@@ -174,8 +177,8 @@ class PersonDetectorNumpy:
         if "stage32_1.dw.w" in self.w:
             p32 = self.dwblock(p32, "stage32_1", 1)
 
-        u16 = self.conv1x1(p16, "lat16", False) + self.upsample_nearest(p32, p16.shape[0], p16.shape[1])
-        u8 = self.conv1x1(p8, "lat8", False) + self.upsample_nearest(u16, p8.shape[0], p8.shape[1])
+        u16 = self.conv1x1(p16, "lat16", True) + self.upsample_nearest(p32, p16.shape[0], p16.shape[1])
+        u8 = self.conv1x1(p8, "lat8", True) + self.upsample_nearest(u16, p8.shape[0], p8.shape[1])
 
         outputs = [(self.head(u8, "head8"), 8), (self.head(u16, "head16"), 16)]
         if "head32_obj.w" in self.w:

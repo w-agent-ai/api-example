@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdint>
@@ -84,14 +85,42 @@ struct Detection {
 };
 
 struct DetectParams {
-    float score_threshold = 0.01f;
-    float nms_threshold = 0.45f;
+    float score_threshold = 0.35f;
+    float nms_threshold = 0.50f;
     int topk = 1000;
 };
 
 float sigmoid(float x) {
     x = std::max(-50.0f, std::min(50.0f, x));
     return 1.0f / (1.0f + std::exp(-x));
+}
+
+constexpr int kSiluLutN = 4096;
+constexpr float kSiluLutMin = -8.0f;
+constexpr float kSiluLutMax = 8.0f;
+constexpr float kSiluLutScale = kSiluLutN / (kSiluLutMax - kSiluLutMin);
+
+const std::array<float, kSiluLutN + 1>& silu_lut() {
+    static const std::array<float, kSiluLutN + 1> table = [] {
+        std::array<float, kSiluLutN + 1> t{};
+        for (int i = 0; i <= kSiluLutN; ++i) {
+            const float x = kSiluLutMin + (kSiluLutMax - kSiluLutMin) * i / kSiluLutN;
+            t[i] = x * sigmoid(x);
+        }
+        return t;
+    }();
+    return table;
+}
+
+inline float silu(float x) {
+    if (x >= kSiluLutMax) {
+        return x;
+    }
+    if (x <= kSiluLutMin) {
+        return 0.0f;
+    }
+    const int i = (int)((x - kSiluLutMin) * kSiluLutScale + 0.5f);
+    return silu_lut()[i];
 }
 
 float iou(const Detection& a, const Detection& b) {
@@ -225,7 +254,6 @@ Tensor conv1x1(const Tensor& in, const Blob& weight, const Blob& bias, bool relu
         float* dst = out.data.data() + (size_t)pos * out_c;
         int oc = 0;
 #if PERSONDET_SIMD_AVX2
-        const __m256 zero = _mm256_setzero_ps();
         for (; oc + 8 <= out_c; oc += 8) {
             __m256 sum = _mm256_loadu_ps(bias.data.data() + oc);
             for (int ic = 0; ic < in.c; ++ic) {
@@ -237,23 +265,24 @@ Tensor conv1x1(const Tensor& in, const Blob& weight, const Blob& bias, bool relu
                 sum = _mm256_add_ps(sum, _mm256_mul_ps(xv, wv));
 #endif
             }
-            if (relu) {
-                sum = _mm256_max_ps(sum, zero);
+            float tmp[8];
+            _mm256_storeu_ps(tmp, sum);
+            for (int lane = 0; lane < 8; ++lane) {
+                dst[oc + lane] = relu ? silu(tmp[lane]) : tmp[lane];
             }
-            _mm256_storeu_ps(dst + oc, sum);
         }
 #elif PERSONDET_SIMD_NEON
-        const float32x4_t zero = vdupq_n_f32(0.0f);
         for (; oc + 4 <= out_c; oc += 4) {
             float32x4_t sum = vld1q_f32(bias.data.data() + oc);
             for (int ic = 0; ic < in.c; ++ic) {
                 float32x4_t wv = vld1q_f32(weight.data.data() + (size_t)ic * out_c + oc);
                 sum = vmlaq_n_f32(sum, wv, src[ic]);
             }
-            if (relu) {
-                sum = vmaxq_f32(sum, zero);
+            float tmp[4];
+            vst1q_f32(tmp, sum);
+            for (int lane = 0; lane < 4; ++lane) {
+                dst[oc + lane] = relu ? silu(tmp[lane]) : tmp[lane];
             }
-            vst1q_f32(dst + oc, sum);
         }
 #endif
         for (; oc < out_c; ++oc) {
@@ -261,10 +290,7 @@ Tensor conv1x1(const Tensor& in, const Blob& weight, const Blob& bias, bool relu
             for (int ic = 0; ic < in.c; ++ic) {
                 sum += src[ic] * weight.data[(size_t)ic * out_c + oc];
             }
-            if (relu && sum < 0.0f) {
-                sum = 0.0f;
-            }
-            dst[oc] = sum;
+            dst[oc] = relu ? silu(sum) : sum;
         }
     }
     return out;
@@ -309,10 +335,7 @@ Tensor depthwise3x3(const Tensor& in, const Blob& weight, const Blob& bias, int 
                         }
                     }
                 }
-                if (relu && sum < 0.0f) {
-                    sum = 0.0f;
-                }
-                out.data[((size_t)oy * out_w + ox) * in.c + c] = sum;
+                out.data[((size_t)oy * out_w + ox) * in.c + c] = relu ? silu(sum) : sum;
             }
         }
     }
@@ -342,7 +365,7 @@ Tensor reorg_conv(const Tensor& in, const Blob& weight, const Blob& bias) {
                         }
                     }
                 }
-                out.data[((size_t)oy * out_w + ox) * out.c + oc] = std::max(0.0f, sum);
+                out.data[((size_t)oy * out_w + ox) * out.c + oc] = silu(sum);
             }
         }
     }
@@ -413,20 +436,26 @@ Tensor reorg_conv_bgr(const unsigned char* bgr, int width, int height, int strid
                 }
             }
 #if PERSONDET_SIMD_AVX2
-            const __m256 zero = _mm256_setzero_ps();
-            s0 = _mm256_max_ps(s0, zero);
-            s1 = _mm256_max_ps(s1, zero);
-            _mm256_storeu_ps(dst, s0);
-            _mm256_storeu_ps(dst + 8, s1);
+            float tmp0[8];
+            float tmp1[8];
+            _mm256_storeu_ps(tmp0, s0);
+            _mm256_storeu_ps(tmp1, s1);
+            for (int lane = 0; lane < 8; ++lane) {
+                dst[lane] = silu(tmp0[lane]);
+                dst[8 + lane] = silu(tmp1[lane]);
+            }
 #elif PERSONDET_SIMD_NEON
-            const float32x4_t zero = vdupq_n_f32(0.0f);
-            vst1q_f32(dst, vmaxq_f32(s0, zero));
-            vst1q_f32(dst + 4, vmaxq_f32(s1, zero));
-            vst1q_f32(dst + 8, vmaxq_f32(s2, zero));
-            vst1q_f32(dst + 12, vmaxq_f32(s3, zero));
+            float tmp[16];
+            vst1q_f32(tmp, s0);
+            vst1q_f32(tmp + 4, s1);
+            vst1q_f32(tmp + 8, s2);
+            vst1q_f32(tmp + 12, s3);
+            for (int lane = 0; lane < 16; ++lane) {
+                dst[lane] = silu(tmp[lane]);
+            }
 #else
             for (int oc = 0; oc < 16; ++oc) {
-                dst[oc] = std::max(0.0f, sum[oc]);
+                dst[oc] = silu(sum[oc]);
             }
 #endif
         }
@@ -468,7 +497,7 @@ Tensor reorg_conv_bgr(const unsigned char* bgr, int width, int height, int strid
                         }
                     }
                 }
-                out.data[((size_t)oy * out_w + ox) * out.c + oc] = std::max(0.0f, sum);
+                out.data[((size_t)oy * out_w + ox) * out.c + oc] = silu(sum);
             }
         }
     }
@@ -522,9 +551,7 @@ Tensor dwblock(const Tensor& in, const std::map<std::string, Blob>& blobs, const
                     }
                 }
             }
-            if (dw < 0.0f) {
-                dw = 0.0f;
-            }
+            dw = silu(dw);
 
             const float* pw = pw_w.data.data() + (size_t)ic * out_c;
             int oc = 0;
@@ -553,9 +580,7 @@ Tensor dwblock(const Tensor& in, const std::map<std::string, Blob>& blobs, const
         }
 
         for (int oc = 0; oc < out_c; ++oc) {
-            if (dst[oc] < 0.0f) {
-                dst[oc] = 0.0f;
-            }
+            dst[oc] = silu(dst[oc]);
         }
     }
     return out;
@@ -728,9 +753,9 @@ static std::vector<Detection> detect_tensor(
     if (has_blob(b, "stage32_1.dw.w")) {
         p32 = dwblock_auto(p32, b, "stage32_1", 1);
     }
-    Tensor u16_lat = conv1x1(p16, blob(b, "lat16.w"), blob(b, "lat16.b"), false);
+    Tensor u16_lat = conv1x1(p16, blob(b, "lat16.w"), blob(b, "lat16.b"), true);
     Tensor u16 = add_tensors(u16_lat, upsample_nearest(p32, p16.h, p16.w));
-    Tensor u8_lat = conv1x1(p8, blob(b, "lat8.w"), blob(b, "lat8.b"), false);
+    Tensor u8_lat = conv1x1(p8, blob(b, "lat8.w"), blob(b, "lat8.b"), true);
     Tensor u8 = add_tensors(u8_lat, upsample_nearest(u16, p8.h, p8.w));
 
     HeadOut h8 = head_forward(u8, b, "head8");

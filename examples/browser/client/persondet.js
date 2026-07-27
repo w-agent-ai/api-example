@@ -2,8 +2,8 @@
   "use strict";
 
   const DEFAULT_CONFIG = {
-    scoreThreshold: 0.30,
-    nmsThreshold: 0.45,
+    scoreThreshold: 0.35,
+    nmsThreshold: 0.50,
     resizeWidth: 640,
     defaultJump: 3,
     fallbackFps: 25,
@@ -41,6 +41,12 @@
 
   function sigmoid(x) {
     return 1 / (1 + Math.exp(-clamp(x, -50, 50)));
+  }
+
+  function silu(x) {
+    if (x >= 8) return x;
+    if (x <= -8) return 0;
+    return x * sigmoid(x);
   }
 
   function iouBox(a, b) {
@@ -109,7 +115,7 @@
           for (let ic = 0; ic < inC; ic += 1) {
             sum += src[srcBase + ic] * w[wBase + ic];
           }
-          dst[dstBase + oc] = relu && sum < 0 ? 0 : sum;
+          dst[dstBase + oc] = relu ? silu(sum) : sum;
         }
       }
       return out;
@@ -146,13 +152,13 @@
                 dw += src[(iy * x.w + ix) * inC + ic] * dwWeight[wBase + ky * 3 + kx];
               }
             }
-            if (dw < 0) dw = 0;
+            dw = silu(dw);
             for (let oc = 0; oc < outC; oc += 1) {
               dst[dstBase + oc] += dw * pw[oc * inC + ic];
             }
           }
           for (let oc = 0; oc < outC; oc += 1) {
-            if (dst[dstBase + oc] < 0) dst[dstBase + oc] = 0;
+            dst[dstBase + oc] = silu(dst[dstBase + oc]);
           }
         }
       }
@@ -187,7 +193,7 @@
                 }
               }
             }
-            dst[outBase + oc] = sum < 0 ? 0 : sum;
+            dst[outBase + oc] = silu(sum);
           }
         }
       }
@@ -234,8 +240,8 @@
       if (hasWeight(this.weights, "stage16_1.dw.w")) p16 = this.dwblock(p16, "stage16_1", 1);
       let p32 = this.dwblock(p16, "stage32_0", 2);
       if (hasWeight(this.weights, "stage32_1.dw.w")) p32 = this.dwblock(p32, "stage32_1", 1);
-      const u16 = this.add(this.conv1x1(p16, "lat16", false), this.upsampleNearest(p32, p16.h, p16.w));
-      const u8 = this.add(this.conv1x1(p8, "lat8", false), this.upsampleNearest(u16, p8.h, p8.w));
+      const u16 = this.add(this.conv1x1(p16, "lat16", true), this.upsampleNearest(p32, p16.h, p16.w));
+      const u8 = this.add(this.conv1x1(p8, "lat8", true), this.upsampleNearest(u16, p8.h, p8.w));
       const outputs = [{ head: this.head(u8, "head8"), stride: 8 }, { head: this.head(u16, "head16"), stride: 16 }];
       if (hasWeight(this.weights, "head32_obj.w")) outputs.push({ head: this.head(p32, "head32"), stride: 32 });
       return outputs;
@@ -769,7 +775,6 @@
       }
       await video.play();
       let nextProcessTime = 0;
-      let frameID = 1;
       try {
       while (!video.ended) {
         checkAborted();
@@ -790,10 +795,10 @@
             await video.play();
             continue;
           }
+          const frameID = Math.max(1, Math.round(mediaTime * fps) + 1);
           await processCurrentFrame(frameID);
           checkAborted();
           nextProcessTime += step;
-          frameID += jump;
           if (duration > 0 && nextProcessTime > duration) break;
           await video.play();
         }

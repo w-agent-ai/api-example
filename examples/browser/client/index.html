@@ -1191,8 +1191,8 @@
         manualChargeTrial: "本次上传总序列数 {count}，消耗 {amount}，当前算法剩余免费试用额度 {remaining}。",
         poseManualChargeRegistered: "本次上传消耗{amount}，账户剩余{remaining}。",
         chargeDoneTrial: "本次调用消耗 {amount}，当前算法剩余免费试用额度 {remaining}。",
-        chargeMoreQuotaHint: "如需要更多使用额度，可访问「登录」。",
-        chargeMoreQuotaHintHTML: "如需要更多使用额度，可访问「{link}」页登录后使用。",
+        chargeMoreQuotaHint: "如需要更多使用额度，可登录后使用。",
+        chargeMoreQuotaHintHTML: "如需要更多使用额度，可{link}后使用。",
         chargeRegisterLink: "登录",
         chargeDoneRegistered: "本次调用消耗 {amount}。",
         chargeInsufficient: "本次调用消耗 {amount}，剩余额度 {remaining}，请充值。",
@@ -1300,7 +1300,7 @@
         gaitDonePart: "完成，已提取 {count} 个序列",
         gaitSkippedPart: "已跳过，使用已有 {count} 个序列",
         gaitChargeSuffix: "，消耗 {amount}",
-        gaitTrialRemainingSuffix: "{amount}，当前算法剩余免费试用额度 {remaining}",
+        gaitTrialRemainingLine: "当前算法剩余免费试用额度 {remaining}",
         gaitDone: "序列提取完成：视频1：{left} 个序列，视频2：{right} 个序列。",
         gaitStopped: "已停止，视频1：{left} 个序列，视频2：{right} 个序列。",
         gaitFailed: "序列提取失败。",
@@ -1466,7 +1466,7 @@
         gaitDonePart: "done, {count} sequences extracted",
         gaitSkippedPart: "skipped, using {count} existing sequences",
         gaitChargeSuffix: ", used {amount}",
-        gaitTrialRemainingSuffix: "{amount}, remaining free trial quota for this algorithm {remaining}",
+        gaitTrialRemainingLine: "Remaining free trial quota for this algorithm: {remaining}",
         gaitDone: "Sequence extraction completed: video 1 {left}, video 2 {right}.",
         gaitStopped: "Stopped, video 1 {left}, video 2 {right}.",
         gaitFailed: "Sequence extraction failed.",
@@ -1994,7 +1994,7 @@
     function moreQuotaHintHTML() {
       const link = `<a href="/portal#login" target="_blank" rel="noopener">${escapeHTML(t("chargeRegisterLink"))}</a>`;
       if (state.locale === "en-US") return `For more quota, visit the ${link} page and sign in.`;
-      return `如需要更多使用额度，可访问「${link}」页登录后使用。`;
+      return `如需要更多使用额度，可${link}后使用。`;
     }
 
     function topUpLinkHTML() {
@@ -2378,19 +2378,24 @@
       if (state.apiMode !== "auto" || !state.gait.autoCharge) return "";
       const bucket = state.gait.autoCharge[group];
       if (!bucket || !bucket.count) return "";
-      const amountText = bucket.trial && Number.isFinite(bucket.remaining)
-        ? t("gaitTrialRemainingSuffix", { amount: moneyText(bucket.amount), remaining: moneyText(bucket.remaining) })
-        : moneyText(bucket.amount);
-      return t("gaitChargeSuffix", { amount: amountText });
+      return t("gaitChargeSuffix", { amount: moneyText(bucket.amount) });
     }
 
     function gaitChargeSuffixHTML(group) {
       const text = gaitChargeSuffix(group);
-      if (!text) return "";
-      const bucket = state.gait.autoCharge && state.gait.autoCharge[group];
-      return bucket && bucket.trial && Number.isFinite(bucket.remaining)
-        ? escapeHTML(text) + " " + moreQuotaHintHTML()
-        : escapeHTML(text);
+      return text ? escapeHTML(text) : "";
+    }
+
+    function gaitTrialRemainingSummaryHTML() {
+      if (state.apiMode !== "auto" || !state.gait.autoCharge) return "";
+      const buckets = [state.gait.autoCharge.video1, state.gait.autoCharge.video2].filter(Boolean);
+      const remainingValues = buckets
+        .filter((bucket) => bucket.trial && Number.isFinite(bucket.remaining))
+        .map((bucket) => bucket.remaining);
+      if (!remainingValues.length) return "";
+      const remaining = Math.min(...remainingValues);
+      const line = t("gaitTrialRemainingLine", { remaining: moneyText(remaining) });
+      return escapeHTML(line) + " " + moreQuotaHintHTML();
     }
 
     function maybeShowPoseAutoChargeSummary() {
@@ -3119,6 +3124,8 @@
         escapeHTML(t("gaitStatusLine", { video: t("video1"), progress: progress.video1 || "-" })) + gaitChargeSuffixHTML("video1"),
         escapeHTML(t("gaitStatusLine", { video: t("video2"), progress: progress.video2 || "-" })) + gaitChargeSuffixHTML("video2"),
       ];
+      const trialSummary = gaitTrialRemainingSummaryHTML();
+      if (trialSummary) lines.push(trialSummary);
       setStatusHTML(lines.map((line) => `<div>${line}</div>`).join(""));
     }
 

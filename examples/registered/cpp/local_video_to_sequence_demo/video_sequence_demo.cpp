@@ -29,8 +29,8 @@ struct Options {
 
     // Fixed extraction parameters. Change them here if the default behavior
     // needs to be adjusted.
-    float score_threshold = 0.30f;
-    float nms_threshold = 0.45f;
+    float score_threshold = 0.35f;
+    float nms_threshold = 0.50f;
     int resize_width = 640;
     int default_jump = 2;
     int jump = 2;

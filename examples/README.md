@@ -29,6 +29,9 @@ parallel:
   demo for anonymous x402 calls.
 - `browser/client/`: pure browser client used by the trial/browser download
   entrypoints.
+- `scripts/convert_persondet_weights.py`: converts C++ `persondet_weights.cpp`
+  into Python and browser JavaScript fallback weight files when the local person
+  detector model is updated.
 
 ## Registered User
 

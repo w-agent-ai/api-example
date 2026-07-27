@@ -60,7 +60,8 @@ Files:
 - `index.html`: UI and API calls.
 - `persondet.js`: detector backend selection, JavaScript fallback detector, IoU
   tracking, sequence filtering, and crop export.
-- `persondet_weights.js`: generated weights from the Python/C++ demo.
+- `persondet_weights.js`: generated JavaScript fallback weights converted from
+  the C++ demo weights.
 - `persondet_wasm_bindings.cpp`: C ABI wrapper for the C++ detector.
 - `build_persondet_wasm.sh`: builds `persondet_wasm.js` and
   `persondet_wasm.wasm` with Emscripten `-O3 -flto -msimd128`.
@@ -69,11 +70,12 @@ Files:
 
 `/portal/demo-download?type=browser-pose&open=1` opens the standalone Gait Pose
 browser client inline. `/portal/demo-download?type=browser-gait&open=1` opens the
-standalone Gait Recognition browser client inline. Without `open=1`, the same
-routes return downloadable HTML attachments. Both are single HTML files with
-`persondet.js` and `persondet_weights.js` embedded. If `persondet_wasm.js` and
-`persondet_wasm.wasm` have been built, they are embedded too. The source package
-keeps files separate for maintainability.
+standalone Gait Recognition browser client inline. The online `open=1` page
+embeds the WASM detector and `persondet.js`, but intentionally omits
+`persondet_weights.js` so browsers do not parse the large JavaScript fallback
+weights when WASM is available. Without `open=1`, the same routes return
+downloadable HTML attachments with `persondet.js`, `persondet_weights.js`, and
+the WASM files embedded for compatibility.
 
 Build the WASM + SIMD backend:
 
@@ -85,6 +87,23 @@ cd examples/browser/client
 The browser prefers WASM + SIMD when present and falls back to pure JavaScript
 when the WASM files are missing or unsupported. WASM uses the same C++ detector
 source as the native local preprocessing demo and does not use ONNX.
+
+When replacing the detector model, update the C++ `persondet_weights.cpp` first,
+then regenerate Python and browser JavaScript fallback weights:
+
+```bash
+python3 scripts/convert_persondet_weights.py \
+  examples/registered/cpp/local_video_to_sequence_demo/persondet_weights.cpp \
+  --python-out examples/registered/python/local_video_to_sequence_demo/persondet_weights.py \
+  --js-out examples/browser/client/persondet_weights.js
+
+python3 scripts/convert_persondet_weights.py \
+  examples/registered/cpp/local_video_to_sequence_demo/persondet_weights.cpp \
+  --python-out examples/anonymous/python/local_video_to_sequence_demo/persondet_weights.py
+```
+
+The current detector defaults are `score_threshold = 0.35` and
+`nms_threshold = 0.50`.
 
 Pose display notes:
 

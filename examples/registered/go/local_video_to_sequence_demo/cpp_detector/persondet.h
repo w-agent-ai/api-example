@@ -9,8 +9,8 @@
 //
 // The core detector has no OpenCV/PyTorch/model-file dependency. The caller is
 // responsible for image decode and resize. detect_bgr() expects tightly or
-// strided BGR uint8 image memory, usually resized so the longer side is 640
-// and the shorter side is rounded to a multiple of 32.
+// strided BGR uint8 image memory, usually resized to width 640 with height
+// rounded to a multiple of 32.
 //
 // SIMD is selected automatically from compiler target macros:
 //   x86/x64: AVX2/FMA when the compiler target enables them
@@ -38,8 +38,8 @@ public:
         int width,
         int height,
         int stride,
-        float score_threshold = 0.01f,
-        float nms_threshold = 0.45f,
+        float score_threshold = 0.35f,
+        float nms_threshold = 0.50f,
         int topk = 1000);
 
 private:
