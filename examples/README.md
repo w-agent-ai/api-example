@@ -19,19 +19,25 @@ parallel:
   client files; use the Python, C++, or Go packages for registered API-Key
   integration examples.
 - `registered/python/local_video_to_sequence_demo/`: Python local video-to-sequence
-  demo for registered users.
-- `registered/cpp/local_video_to_sequence_demo/`: C++ local video-to-sequence demo
-  for registered users.
-- `registered/go/local_video_to_sequence_demo/`: Go orchestration demo that runs
-  local video-to-sequence preprocessing and uploads with the Go Sequence API
-  demo.
+  demo for registered users. It uses ONNX Runtime and `gait_detect.onnx`
+  for local person detection.
+- `registered/cpp/local_video_to_sequence_demo/`: C++ local video-to-sequence
+  demo for registered users. It uses the bundled Linux x64 CPU ONNX Runtime
+  package and `gait_detect.onnx` for local person detection.
 - `anonymous/python/local_video_to_sequence_demo/`: Python local video-to-sequence
-  demo for anonymous x402 calls.
+  demo for anonymous x402 calls. It uses ONNX Runtime and
+  `gait_detect.onnx` for local person detection.
 - `browser/client/`: pure browser client used by the trial/browser download
   entrypoints.
-- `scripts/convert_persondet_weights.py`: converts C++ `persondet_weights.cpp`
-  into Python and browser JavaScript fallback weight files when the local person
-  detector model is updated.
+- Local video-to-sequence Python and C++ demos use ONNX Runtime. Browser demos
+  use ONNX Runtime Web. The old generated `persondet_weights` files remain only
+  as browser fallback assets.
+- The ONNX model is bundled in the Python and C++ local video-to-sequence
+  packages, so users do not need to download it separately.
+- Single-algorithm ZIP packages include both `README.md` and `README.zh.md` at
+  the package root. These files are task-specific and should describe only that
+  algorithm. Standalone subdirectories also include English and Chinese README
+  files when they have their own run entrypoint.
 
 ## Registered User
 
@@ -44,8 +50,7 @@ Authorization: Bearer <api_key>
 Set your registered API Key before running registered-user demos:
 
 ```bash
-export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
-export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+Edit API_KEY near the top of the Python demo before running.
 ```
 
 Base URL:
@@ -69,6 +74,10 @@ Choose by task intent:
 - 2D/3D human keypoints: upload sequence frames first, then call
   `POST /v1/sequences/{task_id}/gait-pose`.
 - Single-image text search: use `object_search_api_demo.py`.
+- Single aligned-face feature: use `anonymous_face_x402_demo.py` for anonymous
+  x402, or the registered face package.
+- Single person ReID feature: use `anonymous_reid_x402_demo.py` for anonymous
+  x402, or the registered ReID package.
 - Registered calls use `Authorization: Bearer <api_key>` and registered routes.
 - Anonymous calls use public routes, receive HTTP 402, sign an x402 payment, and
   retry the same HTTP request.
@@ -97,10 +106,9 @@ Input requirements:
 Registered-user examples:
 
 ```bash
-python3 examples/registered/python/sequence_and_video_api_demo.py
-python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
-cd examples/registered/go/sequence_demo && ./build.sh && ./registered_sequence_demo
-cd examples/registered/cpp/sequence_demo && ./build.sh && ./build/registered_sequence_demo
+python3 examples/registered/python/gait_sequence_api_demo.py
+cd examples/registered/go/sequence_demo && go build -o registered_sequence_demo main.go && ./registered_sequence_demo
+cd examples/registered/cpp/sequence_demo && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j && ./build/registered_sequence_demo
 ```
 
 Anonymous x402 example:
@@ -118,8 +126,8 @@ Registered-user examples:
 
 ```bash
 python3 examples/registered/python/sequence_and_video_api_demo.py
-cd examples/registered/go/video_demo && ./build.sh && ./registered_video_demo
-cd examples/registered/cpp/video_demo && ./build.sh && ./build/registered_video_demo
+cd examples/registered/go/video_demo && go build -o registered_video_demo main.go && ./registered_video_demo
+cd examples/registered/cpp/video_demo && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j && ./build/registered_video_demo
 ```
 
 Anonymous x402 example:
@@ -131,19 +139,19 @@ python3 examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py
 ## Input Mode 3: Local Video To Sequence
 
 If a client wants to process videos locally and only upload tracked person
-sequence images to W-Agent, use the local video-to-sequence demo inside the
-chosen language package. It extracts person sequence folders from a video, then
-uploads those folders with the Sequence API.
+sequence images to W-Agent, use the Python or C++ local video-to-sequence demo.
+Both run ONNX Runtime person detection, extract person sequence folders from a
+video, then upload those folders with the Sequence API.
 
 ```bash
 python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
-./examples/registered/cpp/local_video_to_sequence_demo/run_local_video_to_sequence_api_demo.sh /path/to/video.mp4
-./examples/registered/go/local_video_to_sequence_demo/run_local_video_to_sequence_api_demo.sh /path/to/video.mp4
 python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_sequence_x402_demo.py /path/to/video.mp4
+cd examples/registered/cpp/local_video_to_sequence_demo && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j && ./build/local_video_to_gait_api_demo /path/to/video.mp4
 ```
 
 Each local demo writes one folder per detected person sequence and then uploads
-the generated sequence folders.
+the generated sequence folders. Go packages are kept for direct sequence/API
+usage examples; use the Python or C++ package for local video detection.
 
 ### Task Quickstart: Video To Each Person's 2D/3D Keypoints
 
@@ -157,8 +165,7 @@ local video-to-sequence demo first and call Gait Pose per generated sequence:
 5. Save `result.json`, `pose_2d.csv`, and `pose_3d.csv` beside that sequence's frames.
 
 ```bash
-export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
-export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+Edit API_KEY near the top of the Python demo before running.
 python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
 ```
 
@@ -198,7 +205,7 @@ split result as its own output sequence.
 ### Python
 
 The Python registered-user demo processes all leaf sequence directories under
-`examples/sample_sequences` and all videos under `examples/video`, then writes JSON results
+`examples/seqs` and all videos under `examples/video`, then writes JSON results
 and feature similarity reports under `tmp/registered_batch_results`.
 
 Result JSON includes `emotions` when the SDK returns them. Sequence parsing no
@@ -233,16 +240,16 @@ Gait Pose coordinate notes:
 python3 examples/registered/python/sequence_and_video_api_demo.py
 ```
 
-For a compact local-folder-to-CSV identity comparison:
+For a compact existing-sequence gait API call:
 
 ```bash
-python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
+python3 examples/registered/python/gait_sequence_api_demo.py
 ```
 
 Minimal Object Search runnable example:
 
 ```bash
-python3 examples/registered/python/object_search_api_demo.py examples/sample_sequences/ID_0001/001811.jpg 'person'
+python3 examples/registered/python/object_search_api_demo.py
 ```
 
 Object Search rules:
@@ -270,39 +277,50 @@ python3 examples/registered/python/mcp_api_demo.py
 
 ### Go
 
-The Go package contains registered-user sequence and video API demos. Its
-`local_video_to_sequence_demo` runs local preprocessing first, then uploads the
-generated sequence folders with the Go sequence demo.
+The Go package contains registered-user sequence API demos for already prepared
+sequence image folders. For local video detection and tracking, use the Python
+ONNX Runtime local video-to-sequence demo first, then call the Go sequence or
+pose demo on the generated sequence folder.
 
 ```bash
 cd examples/registered/go/sequence_demo
-./build.sh
+go build -o registered_sequence_demo main.go
 ./registered_sequence_demo
 ```
 
 ```bash
 cd examples/registered/go/video_demo
-./build.sh
+go build -o registered_video_demo main.go
 ./registered_video_demo
 ```
 
 ### C++
 
-The C++ package contains registered-user sequence and video API demos plus the
-CPU video-to-sequence preprocessing source. API demos require `libcurl` and
-`nlohmann/json`.
+The C++ package contains registered-user sequence API demos for already prepared
+sequence image folders and a local video-to-sequence demo based on Linux x64 CPU
+ONNX Runtime. API demos require `libcurl` and `nlohmann/json`; the local video
+demo also requires OpenCV.
 
 ```bash
 sudo apt-get install -y libcurl4-openssl-dev nlohmann-json3-dev
 cd examples/registered/cpp/sequence_demo
-./build.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ./build/registered_sequence_demo
 ```
 
 ```bash
 cd examples/registered/cpp/video_demo
-./build.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ./build/registered_video_demo
+```
+
+```bash
+cd examples/registered/cpp/local_video_to_sequence_demo
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/local_video_to_gait_api_demo /path/to/video.mp4
 ```
 
 ## Anonymous Agent
@@ -314,7 +332,18 @@ same operation with payment headers.
 Current anonymous demos are Python only:
 
 ```bash
-python3 examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py
+python3 examples/anonymous/python/anonymous_object_search_x402_demo.py
+```
+
+Anonymous x402 face/ReID feature examples:
+
+```bash
+python3 examples/anonymous/python/anonymous_face_x402_demo.py
+python3 examples/anonymous/python/anonymous_reid_x402_demo.py
+```
+
+```bash
+python3 examples/anonymous/python/anonymous_gait_pose_x402_demo.py
 ```
 
 ```bash

@@ -2,7 +2,7 @@
 """
 Batch real x402 tester for anonymous public sequence and video APIs.
 
-Configure EVM_PRIVATE_KEY below or export GAIT_TEST_WALLET_PRIVATE_KEY.
+Configure EVM_PRIVATE_KEY below before running.
 Results are written under RESULT_DIR as one JSON file per sequence/video plus
 summary.json.
 """
@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 
@@ -34,8 +34,6 @@ except Exception as exc:  # pragma: no cover
     sys.exit(2)
 
 
-ROOT = Path(__file__).resolve().parents[3]
-
 # Anonymous x402 demo configuration.
 #
 # Result JSON may include optional emotions fields. pose_2ds and pose_3ds are
@@ -45,18 +43,18 @@ ROOT = Path(__file__).resolve().parents[3]
 # 402 Payment Required challenge, signs an x402 payment payload with an EVM
 # wallet private key, and retries the same API operation with payment headers.
 EVM_PRIVATE_KEY = ""
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "http://116.198.210.0:3005")
+BASE_URL = "https://www.w-agent.cn/api"
 
 # Sequence input:
 #   examples/seqs may contain nested folders.
 #   Each leaf folder that directly contains images is treated as one sequence.
 # Video input:
 #   examples/video is scanned recursively for common video file extensions.
-SEQ_ROOT = ROOT / "examples" / "seqs"
-VIDEO_ROOT = ROOT / "examples" / "video"
+SEQ_ROOT = Path("./seqs")
+VIDEO_ROOT = Path("./video")
 
 # All raw API responses and derived similarity reports are written here.
-RESULT_DIR = ROOT / "tmp" / "public_x402_batch_results"
+RESULT_DIR = Path("./result")
 TIMEOUT = 1800
 POLL_INTERVAL = 2.0
 
@@ -136,7 +134,7 @@ def main() -> int:
 def run_and_save(kind: str, source: Path, fn) -> dict[str, Any]:
     """Run one API operation and persist its full result or error as JSON."""
     started_at = iso_now()
-    safe_name = safe_filename(str(source.relative_to(ROOT) if source.is_relative_to(ROOT) else source))
+    safe_name = safe_filename(str(source))
     out_path = RESULT_DIR / kind / f"{safe_name}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -179,7 +177,7 @@ def run_public_sequence_x402(session: requests.Session, private_key: str, seq_di
 
     API flow:
       1. POST /v1/public/sequences with frame_count.
-      2. PUT each frame to the upload_url returned by step 1.
+      2. POST all frames once to /v1/public/sequences/{task_id}/uploads/batch as multipart/form-data.
       3. POST /parse once without payment. The server returns HTTP 402 and a
          PAYMENT-REQUIRED challenge header.
       4. Sign and send the x402 payment, then retry /parse.
@@ -192,13 +190,8 @@ def run_public_sequence_x402(session: requests.Session, private_key: str, seq_di
     if len(uploads) != len(frames):
         raise RuntimeError(f"upload count mismatch: api={len(uploads)} local={len(frames)}")
 
-    parse_frames: list[dict[str, Any]] = []
-    for index, frame in enumerate(frames):
-        upload = uploads[index]
-        upload_binary(session, upload["upload_url"], frame)
-        # Use the server-provided index and object_key rather than local
-        # filenames. This keeps parsing independent from client file paths.
-        parse_frames.append({"index": upload["index"], "object_key": upload["object_key"]})
+    upload_frames_batch(session, task_id, task_token, upload_token_from_uploads(uploads), frames)
+    parse_frames = [{"index": upload["index"], "object_key": upload["object_key"]} for upload in uploads]
 
     # The first parse request intentionally has no payment headers. It asks the
     # server for the exact x402 challenge for this task/order.
@@ -711,6 +704,33 @@ def upload_binary(session: requests.Session, upload_url: str, path: Path, conten
         raise_http(resp)
 
 
+def upload_frames_batch(session: requests.Session, task_id: str, task_token: str, upload_token: str, frames: list[Path]) -> None:
+    files = []
+    handles = []
+    try:
+        for index, frame in enumerate(frames):
+            handle = frame.open("rb")
+            handles.append(handle)
+            mime = mimetypes.guess_type(frame.name)[0] or "application/octet-stream"
+            files.append(("frames", (f"{index:06d}{frame.suffix.lower()}", handle, mime)))
+        url = urljoin(BASE_URL.rstrip("/") + "/", f"v1/public/sequences/{task_id}/uploads/batch")
+        resp = session.post(url, headers={"X-Task-Token": task_token}, data={"upload_token": upload_token}, files=files, timeout=TIMEOUT)
+        if resp.status_code >= 400:
+            raise_http(resp)
+    finally:
+        for handle in handles:
+            handle.close()
+
+
+def upload_token_from_uploads(uploads: list[dict[str, Any]]) -> str:
+    if not uploads:
+        raise RuntimeError("create sequence response has no upload slots")
+    token = parse_qs(urlparse(str(uploads[0]["upload_url"])).query).get("token", [""])[0]
+    if not token:
+        raise RuntimeError("upload_url has no token")
+    return token
+
+
 def request_json(session: requests.Session, method: str, path: str, headers: dict[str, str] | None = None, json_payload: Any | None = None) -> dict[str, Any]:
     """Send a JSON API request and raise a readable error for non-2xx replies."""
     resp = raw_request(session, method, path, headers=headers, json_payload=json_payload)
@@ -763,9 +783,9 @@ def read_json(path: Path) -> Any:
 
 
 def load_private_key() -> str:
-    private_key = EVM_PRIVATE_KEY.strip() or os.environ.get("GAIT_TEST_WALLET_PRIVATE_KEY", "").strip()
+    private_key = EVM_PRIVATE_KEY.strip()
     if not private_key:
-        raise RuntimeError("fill EVM_PRIVATE_KEY in examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py or export GAIT_TEST_WALLET_PRIVATE_KEY")
+        raise RuntimeError("fill EVM_PRIVATE_KEY in examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py")
     return private_key if private_key.startswith("0x") else "0x" + private_key
 
 

@@ -11,6 +11,7 @@
     decodePlaybackRate: 1,
     maxAge: 25,
     minFrames: 20,
+    maxFrames: 500,
     requireMoving: true,
     minBoxWidth: 64,
     minBoxHeight: 128,
@@ -20,6 +21,8 @@
     movingScaleThreshold: 0.30,
     topk: 1000,
     jpegQuality: 0.88,
+    onnxInputWidth: 640,
+    onnxInputHeight: 352,
   };
 
   class Tensor {
@@ -342,6 +345,246 @@
     }
   }
 
+  function browserAssetBase() {
+    if (globalThis.WAgentBrowserAssetBase) return globalThis.WAgentBrowserAssetBase;
+    if (globalThis.location && globalThis.location.protocol === "file:") return "";
+    return "/portal/browser-assets/";
+  }
+
+  function joinAssetURL(base, name) {
+    if (!base) return name;
+    return base.replace(/\/?$/, "/") + name;
+  }
+
+  let mp4boxModulePromise = null;
+
+  async function loadMP4BoxModule() {
+    if (!mp4boxModulePromise) {
+      mp4boxModulePromise = import(joinAssetURL(browserAssetBase(), "mp4box.all.mjs"));
+    }
+    return mp4boxModulePromise;
+  }
+
+  function serializeCodecBox(box, MP4Box) {
+    if (!box || typeof box.write !== "function" || !MP4Box || typeof MP4Box.DataStream !== "function") return null;
+    const stream = new MP4Box.DataStream(undefined, 0, MP4Box.Endianness && MP4Box.Endianness.BIG_ENDIAN);
+    box.write(stream);
+    const data = new Uint8Array(stream.buffer);
+    const headerSize = box.hdr_size || 8;
+    if (data.length <= headerSize) return null;
+    return data.slice(headerSize).buffer;
+  }
+
+  function sampleDescriptionForTrack(mp4file, trackID) {
+    if (!mp4file || !mp4file.moov || !Array.isArray(mp4file.moov.traks)) return null;
+    const trak = mp4file.moov.traks.find((item) => item && item.tkhd && item.tkhd.track_id === trackID);
+    const entries = trak && trak.mdia && trak.mdia.minf && trak.mdia.minf.stbl && trak.mdia.minf.stbl.stsd && trak.mdia.minf.stbl.stsd.entries;
+    return entries && entries[0] ? entries[0] : null;
+  }
+
+  function decoderDescriptionFromSampleEntry(entry, MP4Box) {
+    if (!entry) return null;
+    return serializeCodecBox(entry.avcC || entry.hvcC || entry.vpcC || entry.av1C, MP4Box);
+  }
+
+  function codecSupportedByWebCodecs(codec) {
+    return /^avc[13]\./i.test(codec || "") || /^hvc1\.|^hev1\./i.test(codec || "") || /^vp0[89]\./i.test(codec || "") || /^av01\./i.test(codec || "");
+  }
+
+  function microseconds(value, timescale) {
+    if (!Number.isFinite(value) || !Number.isFinite(timescale) || timescale <= 0) return 0;
+    return Math.round(value * 1000000 / timescale);
+  }
+
+  async function demuxVideoSamples(file) {
+    if (!globalThis.VideoDecoder || !globalThis.EncodedVideoChunk) throw new Error("WebCodecs unsupported");
+    const MP4Box = await loadMP4BoxModule();
+    if (!MP4Box || typeof MP4Box.createFile !== "function") throw new Error("mp4box unavailable");
+    const buffer = await file.arrayBuffer();
+    const mp4file = MP4Box.createFile();
+    const samples = [];
+    let selectedTrack = null;
+    let readyError = null;
+    mp4file.onReady = (info) => {
+      selectedTrack = info && info.videoTracks && info.videoTracks[0] ? info.videoTracks[0] : null;
+      if (!selectedTrack) {
+        readyError = new Error("no video track");
+        return;
+      }
+      if (!codecSupportedByWebCodecs(selectedTrack.codec)) {
+        readyError = new Error("unsupported codec: " + (selectedTrack.codec || ""));
+        return;
+      }
+      mp4file.setExtractionOptions(selectedTrack.id, null, { nbSamples: 1000 });
+      mp4file.start();
+    };
+    mp4file.onSamples = (id, user, batch) => {
+      if (selectedTrack && id === selectedTrack.id && Array.isArray(batch)) samples.push(...batch);
+    };
+    const mp4Buffer = buffer;
+    mp4Buffer.fileStart = 0;
+    mp4file.appendBuffer(mp4Buffer, true);
+    if (readyError) throw readyError;
+    if (!selectedTrack) throw new Error("no video track");
+    mp4file.flush();
+    if (!samples.length) throw new Error("no video samples");
+    const entry = sampleDescriptionForTrack(mp4file, selectedTrack.id);
+    const config = {
+      codec: selectedTrack.codec,
+      codedWidth: selectedTrack.video && selectedTrack.video.width || selectedTrack.track_width || 0,
+      codedHeight: selectedTrack.video && selectedTrack.video.height || selectedTrack.track_height || 0,
+      description: decoderDescriptionFromSampleEntry(entry, MP4Box),
+    };
+    if (!config.codedWidth || !config.codedHeight) {
+      delete config.codedWidth;
+      delete config.codedHeight;
+    }
+    if (!config.description) delete config.description;
+    const support = typeof VideoDecoder.isConfigSupported === "function" ? await VideoDecoder.isConfigSupported(config) : { supported: true, config };
+    if (!support || support.supported === false) throw new Error("WebCodecs codec not supported");
+    return { config: support.config || config, samples, track: selectedTrack };
+  }
+
+  function resizeImageDataNearest(imageData, width, height) {
+    const out = new ImageData(width, height);
+    const src = imageData.data;
+    const dst = out.data;
+    for (let y = 0; y < height; y += 1) {
+      const sy = Math.min(imageData.height - 1, Math.floor(y * imageData.height / height));
+      for (let x = 0; x < width; x += 1) {
+        const sx = Math.min(imageData.width - 1, Math.floor(x * imageData.width / width));
+        const srcBase = (sy * imageData.width + sx) * 4;
+        const dstBase = (y * width + x) * 4;
+        dst[dstBase] = src[srcBase];
+        dst[dstBase + 1] = src[srcBase + 1];
+        dst[dstBase + 2] = src[srcBase + 2];
+        dst[dstBase + 3] = src[srcBase + 3];
+      }
+    }
+    return out;
+  }
+
+  function resizeImageData(imageData, width, height) {
+    if (imageData.width === width && imageData.height === height) return imageData;
+    try {
+      const source = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(imageData.width, imageData.height) : document.createElement("canvas");
+      source.width = imageData.width;
+      source.height = imageData.height;
+      source.getContext("2d").putImageData(imageData, 0, 0);
+      const target = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(width, height) : document.createElement("canvas");
+      target.width = width;
+      target.height = height;
+      const ctx = target.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(source, 0, 0, width, height);
+      return ctx.getImageData(0, 0, width, height);
+    } catch (_) {
+      return resizeImageDataNearest(imageData, width, height);
+    }
+  }
+
+  class PersonDetectorOnnx {
+    constructor(session, config) {
+      this.session = session;
+      this.config = { ...DEFAULT_CONFIG, ...(config || {}) };
+      this.inputWidth = this.config.onnxInputWidth || 640;
+      this.inputHeight = this.config.onnxInputHeight || 352;
+      this.inputName = session.inputNames && session.inputNames[0] ? session.inputNames[0] : "images";
+      this.outputNames = session.outputNames && session.outputNames.length ? session.outputNames.slice() : ["p3", "p4", "p5"];
+      this.inputBuffer = null;
+    }
+
+    async detect(imageData, scaleX, scaleY) {
+      const sourceWidth = imageData.width;
+      const sourceHeight = imageData.height;
+      const inputImage = resizeImageData(imageData, this.inputWidth, this.inputHeight);
+      const width = inputImage.width;
+      const height = inputImage.height;
+      const rgba = inputImage.data;
+      const inputSize = 1 * 3 * height * width;
+      if (!this.inputBuffer || this.inputBuffer.length !== inputSize) {
+        this.inputBuffer = new Float32Array(inputSize);
+      }
+      const input = this.inputBuffer;
+      const planeSize = height * width;
+      for (let i = 0, p = 0; i < rgba.length; i += 4, p += 1) {
+        input[p] = rgba[i + 2];
+        input[planeSize + p] = rgba[i + 1];
+        input[planeSize * 2 + p] = rgba[i];
+      }
+      const tensor = new globalThis.ort.Tensor("float32", input, [1, 3, height, width]);
+      const outputs = await this.session.run({ [this.inputName]: tensor });
+      const dets = [];
+      const outputSpecs = [
+        { name: "p3", fallbackIndex: 0, stride: 8 },
+        { name: "p4", fallbackIndex: 1, stride: 16 },
+        { name: "p5", fallbackIndex: 2, stride: 32 },
+      ];
+      for (const spec of outputSpecs) {
+        const fallbackName = this.outputNames[spec.fallbackIndex];
+        const output = outputs[spec.name] || outputs[fallbackName];
+        if (!output || !output.data || !output.dims || output.dims.length !== 4) continue;
+        this.decodeOutput(output.data, output.dims, spec.stride, width, height, dets);
+      }
+      const localScaleX = sourceWidth / width * scaleX;
+      const localScaleY = sourceHeight / height * scaleY;
+      return nms(dets, this.config.nmsThreshold, this.config.topk).map((det) => ({
+        bbox: [det.bbox[0] * localScaleX, det.bbox[1] * localScaleY, det.bbox[2] * localScaleX, det.bbox[3] * localScaleY],
+        score: det.score,
+      }));
+    }
+
+    decodeOutput(data, dims, stride, width, height, dets) {
+      const channels = dims[1];
+      const h = dims[2];
+      const w = dims[3];
+      if (channels < 5) return;
+      const hw = h * w;
+      for (let y = 0; y < h; y += 1) {
+        for (let x = 0; x < w; x += 1) {
+          const pos = y * w + x;
+          const score = sigmoid(data[4 * hw + pos]);
+          if (score < this.config.scoreThreshold) continue;
+          const tx = data[pos];
+          const ty = data[hw + pos];
+          const tw = clamp(data[2 * hw + pos], -8, 8);
+          const th = clamp(data[3 * hw + pos], -8, 8);
+          const bw = Math.exp(tw) * stride;
+          const bh = Math.exp(th) * stride;
+          const cx = (x + tx) * stride;
+          const cy = (y + ty) * stride;
+          dets.push({
+            bbox: [
+              clamp(cx - bw * 0.5, 0, width - 1),
+              clamp(cy - bh * 0.5, 0, height - 1),
+              clamp(cx + bw * 0.5, 0, width - 1),
+              clamp(cy + bh * 0.5, 0, height - 1),
+            ],
+            score,
+          });
+        }
+      }
+    }
+  }
+
+  async function loadOnnxDetector(cfg, progress) {
+    const runtime = globalThis.ort;
+    if (!runtime || !runtime.InferenceSession || !runtime.Tensor) return null;
+    const base = browserAssetBase();
+    try {
+      runtime.env.wasm.numThreads = 1;
+      runtime.env.wasm.wasmPaths = base || "./";
+      const session = await runtime.InferenceSession.create(joinAssetURL(base, "gait_detect.onnx"), {
+        executionProviders: ["wasm"],
+        graphOptimizationLevel: "all",
+      });
+      progress({ stage: "detector", backend: "onnxruntime_wasm" });
+      return new PersonDetectorOnnx(session, cfg);
+    } catch (error) {
+      console.warn("[W-Agent] persondet onnxruntime unavailable, falling back to native wasm:", error);
+      return null;
+    }
+  }
+
   async function loadWasmModule() {
     if (typeof createPersonDetWasmModule !== "function") return null;
     try {
@@ -353,6 +596,8 @@
   }
 
   async function createDetector(cfg, progress) {
+    const onnxDetector = await loadOnnxDetector(cfg, progress);
+    if (onnxDetector) return onnxDetector;
     const wasmModule = await loadWasmModule();
     if (wasmModule) {
       progress({ stage: "detector", backend: "wasm_simd" });
@@ -453,22 +698,13 @@
     });
   }
 
-  function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
-      reader.onerror = () => reject(reader.error || new Error("blob read failed"));
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  async function cropToBase64(sourceCanvas, crop, cfg) {
+  async function cropToBlob(sourceCanvas, crop, cfg) {
     const [x, y, w, h] = crop;
     const out = document.createElement("canvas");
     out.width = w;
     out.height = h;
     out.getContext("2d").drawImage(sourceCanvas, x, y, w, h, 0, 0, w, h);
-    return blobToBase64(await canvasBlob(out, cfg.jpegQuality));
+    return canvasBlob(out, cfg.jpegQuality);
   }
 
   async function exportSequence(seq, cfg) {
@@ -476,7 +712,18 @@
     const frames = [];
     for (let i = 0; i < keepFrames.length; i += 1) {
       const item = keepFrames[i];
-      frames.push({ index: i, frame_id: item.frame_id, time: item.time, content_base64: item.content_base64 });
+      frames.push({
+        index: i,
+        frame_id: item.frame_id,
+        time: item.time,
+        content_base64: item.content_base64,
+        image_base64: item.image_base64,
+        base64: item.base64,
+        content_blob: item.content_blob,
+        preview_base64: item.preview_base64,
+        cacheFile: item.cacheFile,
+        cacheHandle: item.cacheHandle,
+      });
     }
     const firstFrame = keepFrames[0] || {};
     const lastFrame = keepFrames[keepFrames.length - 1] || firstFrame;
@@ -556,6 +803,8 @@
     const cfg = { ...DEFAULT_CONFIG, ...((options && options.config) || {}) };
     const progress = options && options.progress ? options.progress : function () {};
     const onSequence = options && options.onSequence ? options.onSequence : null;
+    const onFrame = options && options.onFrame ? options.onFrame : null;
+    const onDiscard = options && options.onDiscard ? options.onDiscard : null;
     const signal = options && options.signal;
     let detectorBackend = "";
     let decodeMode = "";
@@ -585,10 +834,14 @@
     };
     const reportProgress = (event) => {
       if (event && event.stage === "detector") detectorBackend = event.backend || "";
-      if (event && event.stage === "decode") decodeMode = event.mode || "";
+      if (event && event.stage === "decode") {
+        decodeMode = event.mode || "";
+        if (decodeMode) console.info("[W-Agent] decode mode:", decodeMode, "video:", file && file.name ? file.name : "(unknown)");
+      }
       progress(event);
     };
     checkAborted();
+    reportProgress({ stage: "detector_loading" });
     detector = await createDetector(cfg, reportProgress);
     try {
       checkAborted();
@@ -603,6 +856,7 @@
     video.src = URL.createObjectURL(file);
     try {
       checkAborted();
+      reportProgress({ stage: "metadata_loading" });
       await new Promise((resolve, reject) => {
         video.onloadedmetadata = resolve;
         video.onerror = () => reject(new Error("视频解码失败，浏览器不支持该格式。"));
@@ -613,6 +867,7 @@
       throw error;
     }
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    reportProgress({ stage: "fps_sampling" });
     const fps = await estimateVideoFps(video, cfg);
     const jump = chooseJump(fps, cfg);
     const step = jump / fps;
@@ -621,7 +876,10 @@
     const rawH = video.videoHeight;
     let detW = rawW;
     let detH = rawH;
-    if (cfg.resizeWidth > 0 && Math.max(rawW, rawH) > cfg.resizeWidth) {
+    if (detector && detector.inputWidth > 0 && detector.inputHeight > 0) {
+      detW = detector.inputWidth;
+      detH = detector.inputHeight;
+    } else if (cfg.resizeWidth > 0 && Math.max(rawW, rawH) > cfg.resizeWidth) {
       if (rawW >= rawH) {
         detW = cfg.resizeWidth;
         detH = roundToMultiple(rawH * detW / rawW, 32);
@@ -665,9 +923,11 @@
       const crop = enlargeBox(det.box, cfg.enlarge, rawW, rawH);
       if (crop[2] <= 0 || crop[3] <= 0) return;
       const cropStart = performance.now();
-      const contentBase64 = await cropToBase64(fullCanvas, crop, cfg);
+      const contentBlob = await cropToBlob(fullCanvas, crop, cfg);
       timings.crop_ms += performance.now() - cropStart;
-      seq.frames.push({ frame_id: frameID, time: duration > 0 ? Math.max(0, Math.min(duration, (frameID - 1) / fps)) : 0, score: det.score, det: detRect, crop, content_base64: contentBase64 });
+      const frame = { frame_id: frameID, time: duration > 0 ? Math.max(0, Math.min(duration, (frameID - 1) / fps)) : 0, score: det.score, det: detRect, crop, content_blob: contentBlob };
+      seq.frames.push(frame);
+      if (onFrame) await onFrame(seq, frame, seq.frames.length - 1);
     }
 
     async function finishTrack(track, options) {
@@ -677,10 +937,12 @@
       seqs.delete(track.seqID);
       if (seq.frames.length < cfg.minFrames) {
         rejectedShort += 1;
+        if (onDiscard) await onDiscard(seq, "short");
         return null;
       }
       if (!force && cfg.requireMoving !== false && !isSequenceMoving(rawW, rawH, seq.frames.map((f) => f.det), cfg)) {
         rejectedStatic += 1;
+        if (onDiscard) await onDiscard(seq, "static");
         return null;
       }
       const exported = await emitSequence(seq);
@@ -689,7 +951,7 @@
     }
 
     const completed = [];
-    const totalFramesEstimate = duration > 0 ? Math.ceil(duration * fps) : 0;
+    let totalFramesEstimate = duration > 0 ? Math.ceil(duration * fps) : 0;
 
     function resetExtractionState() {
       tracks.length = 0;
@@ -702,15 +964,16 @@
       rejectedStatic = 0;
     }
 
-    async function processCurrentFrame(frameID) {
+    async function processCurrentFrame(frameID, source) {
       checkAborted();
+      const drawSource = source || video;
       const drawStart = performance.now();
-      fullCtx.drawImage(video, 0, 0, rawW, rawH);
-      detCtx.drawImage(video, 0, 0, detW, detH);
+      fullCtx.drawImage(drawSource, 0, 0, rawW, rawH);
+      detCtx.drawImage(drawSource, 0, 0, detW, detH);
       const imageData = detCtx.getImageData(0, 0, detW, detH);
       timings.draw_ms += performance.now() - drawStart;
       const detectStart = performance.now();
-      const dets = detector.detect(imageData, scaleX, scaleY)
+      const dets = (await detector.detect(imageData, scaleX, scaleY))
         .map((det) => ({ box: det.bbox, score: det.score }))
         .filter((det) => det.box[2] - det.box[0] >= cfg.minBoxWidth && det.box[3] - det.box[1] >= cfg.minBoxHeight);
       timings.detect_ms += performance.now() - detectStart;
@@ -747,6 +1010,12 @@
         await appendFrame(seq, frameID, dets[di]);
       }
       for (let i = tracks.length - 1; i >= 0; i -= 1) {
+        const seq = seqs.get(tracks[i].seqID);
+        if (cfg.maxFrames > 0 && seq && seq.frames.length >= cfg.maxFrames) {
+          const [track] = tracks.splice(i, 1);
+          await finishTrack(track);
+          continue;
+        }
         if (tracks[i].missed > cfg.maxAge) {
           const [track] = tracks.splice(i, 1);
           await finishTrack(track);
@@ -763,6 +1032,103 @@
       return dets.length;
     }
 
+    async function processWithWebCodecsDecode() {
+      let demuxed;
+      try {
+        reportProgress({ stage: "decode_prepare", mode: "webcodecs" });
+        demuxed = await demuxVideoSamples(file);
+      } catch (error) {
+        console.warn("[W-Agent] WebCodecs decode unavailable, falling back to video element:", error);
+        return false;
+      }
+      reportProgress({ stage: "decode", mode: "webcodecs" });
+      const samples = demuxed.samples || [];
+      const track = demuxed.track || {};
+      const trackTimescale = track.timescale || (samples[0] && samples[0].timescale) || fps;
+      totalFramesEstimate = Math.max(totalFramesEstimate, samples.length);
+      let decodedIndex = 0;
+      let outputChain = Promise.resolve();
+      let decodeError = null;
+      let pendingOutputs = 0;
+      const outputWaiters = [];
+      const notifyOutputDrained = () => {
+        while (outputWaiters.length && pendingOutputs < 3) outputWaiters.shift()();
+      };
+      const waitForOutputBacklog = () => {
+        if (pendingOutputs < 3) return Promise.resolve();
+        return new Promise((resolve) => outputWaiters.push(resolve));
+      };
+      const waitForDecoderQueue = (decoder, maxSize) => {
+        if (!decoder || decoder.decodeQueueSize < maxSize) return Promise.resolve();
+        return new Promise((resolve) => {
+          const done = () => {
+            clearTimeout(timer);
+            decoder.removeEventListener("dequeue", done);
+            resolve();
+          };
+          const timer = setTimeout(done, 1000);
+          decoder.addEventListener("dequeue", done, { once: true });
+        });
+      };
+      const decoder = new VideoDecoder({
+        output: (frame) => {
+          const frameIndex = decodedIndex;
+          decodedIndex += 1;
+          pendingOutputs += 1;
+          outputChain = outputChain.then(async () => {
+            try {
+              if (frameIndex % jump === 0) {
+                await processCurrentFrame(frameIndex + 1, frame);
+              }
+            } catch (error) {
+              decodeError = decodeError || error;
+            } finally {
+              try {
+                frame.close();
+              } catch (_) {}
+              pendingOutputs = Math.max(0, pendingOutputs - 1);
+              notifyOutputDrained();
+            }
+          });
+        },
+        error: (error) => {
+          decodeError = decodeError || error;
+        },
+      });
+      try {
+        decoder.configure(demuxed.config);
+        for (let i = 0; i < samples.length; i += 1) {
+          checkAborted();
+          if (decodeError) throw decodeError;
+          const sample = samples[i];
+          const sampleTimescale = sample.timescale || trackTimescale || fps;
+          decoder.decode(new EncodedVideoChunk({
+            type: sample.is_sync ? "key" : "delta",
+            timestamp: microseconds(sample.cts ?? sample.dts ?? i, sampleTimescale),
+            duration: microseconds(sample.duration || 1, sampleTimescale),
+            data: sample.data,
+          }));
+          if (i % 20 === 0) {
+            reportProgress({ processed, total: totalFramesEstimate, current_frame: i + 1, activeTracks: tracks.length, timings });
+            await waitForDecoderQueue(decoder, 8);
+            await waitForOutputBacklog();
+          }
+        }
+        await decoder.flush();
+        await outputChain;
+        if (decodeError) throw decodeError;
+        return true;
+      } catch (error) {
+        if (error && error.name === "AbortError") throw error;
+        console.warn("[W-Agent] WebCodecs decode failed, falling back to video element:", error);
+        return false;
+      } finally {
+        try {
+          decoder.close();
+        } catch (_) {}
+      }
+    }
+
     async function processWithContinuousDecode() {
       if (typeof video.requestVideoFrameCallback !== "function") return false;
       reportProgress({ stage: "decode", mode: "continuous" });
@@ -776,9 +1142,9 @@
       await video.play();
       let nextProcessTime = 0;
       try {
-      while (!video.ended) {
-        checkAborted();
-        const decodeStart = performance.now();
+        while (!video.ended) {
+          checkAborted();
+          const decodeStart = performance.now();
           let metadata;
           try {
             metadata = await nextVideoFrame(video, 2500);
@@ -827,16 +1193,25 @@
     }
 
     try {
-      const usedContinuous = await processWithContinuousDecode();
+      const usedWebCodecs = await processWithWebCodecsDecode();
       checkAborted();
-      if (usedContinuous) {
+      let usedContinuous = false;
+      if (usedWebCodecs) {
         while (tracks.length) await finishTrack(tracks.shift());
       }
-      if (!usedContinuous) {
+      if (!usedWebCodecs) {
+        resetExtractionState();
+        usedContinuous = await processWithContinuousDecode();
+        checkAborted();
+        if (usedContinuous) {
+          while (tracks.length) await finishTrack(tracks.shift());
+        }
+      }
+      if (!usedWebCodecs && !usedContinuous) {
         resetExtractionState();
         decodeMode = "seek_fallback";
         await processWithSeekDecode();
-      } else if (usedContinuous && completed.length === 0 && duration > 0) {
+      } else if ((usedWebCodecs || usedContinuous) && completed.length === 0 && duration > 0) {
         resetExtractionState();
         decodeMode = "seek_fallback";
         await processWithSeekDecode();
@@ -874,10 +1249,12 @@
     }
   }
 
-  window.WAgentPersonDet = {
+  globalThis.WAgentPersonDet = {
     DEFAULT_CONFIG,
     PersonDetectorJS,
     PersonDetectorWasm,
+    PersonDetectorOnnx,
+    createDetector,
     extractLocalVideoSequence,
   };
 }());

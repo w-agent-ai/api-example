@@ -208,8 +208,6 @@
 - `current_payment_phase`
   - 当前待支付阶段
   - 典型值：
-    - `video_phase1`
-    - `video_phase2`
     - `sequence_once`
   - 如果当前不处于待支付阶段，通常为空
 
@@ -313,7 +311,7 @@
   - 处理进度，0 到 100
 
 - `sequence_count`
-  - 视频解析出的序列总数
+  - 任务输出序列总数
 
 - `total_sequence_frames`
   - 所有序列累计帧数
@@ -558,8 +556,6 @@
 - `phase`
   - 计费阶段
   - 当前常见值：
-    - `video_phase1`
-    - `video_phase2`
     - `sequence_once`
 
 - `owner_type`
@@ -1111,8 +1107,6 @@
     - `admin_topup`
     - `admin_adjustment`
     - `sequence_once`
-    - `video_phase1`
-    - `video_phase2`
 
 - `created_at`
   - 流水时间
@@ -1128,6 +1122,46 @@
 
 - `account_wallet_ledger_user_idx`
   - 按用户看流水
+
+### `account_user_summaries`
+
+后台用户管理和活跃用户统计使用的用户级汇总表，避免列表页扫描钱包流水大表。
+
+- `user_public_id`
+  - 用户 ID，主键
+
+- `total_debit_amount`
+  - 累计借记金额，包含用户消费、套餐购买、后台扣款等所有 `direction = debit` 的流水
+
+- `total_credit_amount`
+  - 累计贷记金额，包含充值到账、后台补款等所有 `direction = credit` 的流水
+
+- `total_deposit_amount`
+  - 累计充值到账金额，只统计已到账充值单
+
+- `total_topup_amount`
+  - 累计补款金额，只统计 `admin_topup`、`admin_credit`
+
+- `total_admin_debit_amount`
+  - 累计后台扣款金额，只统计 `admin_adjustment`
+
+- `usage_count`
+  - 借记流水条数
+
+- `active_days`
+  - 有借记流水的自然日数量
+
+- `pending_deposits`
+  - 待处理充值单数量
+
+- `has_settled_deposit`
+  - 是否有已到账充值
+
+- `latest_activity_at` / `latest_usage_at` / `latest_deposit_at`
+  - 最近账户活动、最近消费、最近充值到账时间
+
+- `latest_ip` / `latest_user_agent`
+  - 最近消费流水中的请求上下文，仅用于详情排查，不在用户管理列表展示
 
 - `account_wallet_ledger_reason_created_idx`
   - 按 `reason_code + created_at` 查询财务页充值余额流水、套餐流水和导出样本

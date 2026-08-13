@@ -260,10 +260,9 @@ Recommended order:
 1. repositories and schema migration wiring
 2. task creation and upload negotiation
 3. registered sequence parse path
-4. registered video parse path
-5. public x402 path
-6. cleanup worker
-7. metrics, tracing, and hardening
+4. public x402 path
+5. cleanup worker
+6. metrics, tracing, and hardening
 
 ## Non-Goals for V1
 

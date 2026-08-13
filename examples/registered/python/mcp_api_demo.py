@@ -4,14 +4,14 @@ Complete MCP client demo for registered W-Agent users.
 
 The demo uses plain JSON-RPC 2.0 requests against:
 
-    http://116.198.210.0:3005/mcp
+    https://www.w-agent.cn/api/mcp
 
 It demonstrates the MCP flow end to end:
 
 1. Initialize MCP and list tools.
 2. Read service metadata and pricing.
 3. Create a sequence task.
-4. Upload each sequence frame through the MCP base64 upload tool.
+4. Upload all sequence frames through the MCP base64 batch upload tool.
 5. Run standalone human 2D/3D keypoints.
 6. Parse the sequence.
 7. Fetch the stored sequence result.
@@ -31,21 +31,18 @@ payment, and retry the HTTP request.
 import base64
 import json
 import mimetypes
-import os
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import requests
 
 
-ROOT = Path(__file__).resolve().parents[3]
-
-MCP_URL = "http://116.198.210.0:3005/mcp"
+MCP_URL = "https://www.w-agent.cn/api/mcp"
 API_KEY = "gak_your_api_key"
 
-SEQ_DIR = ROOT / "examples" / "seqs" / "user" / "day_cl02" / "19-day_cl02-44581" / "imgs"
-VIDEO_PATH = ROOT / "examples" / "video" / "0000.avi"
-RESULT_PATH = ROOT / "tmp" / "mcp_api_demo_result.json"
+SEQ_DIR = Path("./images")
+VIDEO_PATH = Path("./video/0000.avi")
+RESULT_PATH = Path("./result/mcp_api_demo_result.json")
 
 ALLOWED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -74,24 +71,24 @@ def main():
 
     task_id = created_sequence["task_id"]
     uploads = created_sequence["uploads"]
-    parse_frames = []
-
-    for frame, upload in zip(frames, uploads):
-        upload_token = token_from_upload_url(upload["upload_url"])
-        uploaded = call_tool(
-            "upload_sequence_frame",
-            {
-                "api_key": API_KEY,
-                "task_id": task_id,
-                "index": upload["index"],
-                "upload_token": upload_token,
-                "content_base64": file_base64(frame),
-                "content_type": mimetypes.guess_type(frame.name)[0] or "image/jpeg",
-            },
-            100 + upload["index"],
-        )
-        ensure_no_tool_error(uploaded)
-        parse_frames.append({"index": upload["index"], "object_key": upload["object_key"]})
+    uploaded = call_tool(
+        "upload_sequence_frames_batch",
+        {
+            "api_key": API_KEY,
+            "task_id": task_id,
+            "upload_token": token_from_upload_url(uploads[0]["upload_url"]),
+            "frames": [
+                {
+                    "content_base64": file_base64(frame),
+                    "content_type": mimetypes.guess_type(frame.name)[0] or "image/jpeg",
+                }
+                for frame in frames
+            ],
+        },
+        100,
+    )
+    ensure_no_tool_error(uploaded)
+    parse_frames = [{"index": upload["index"], "object_key": upload["object_key"]} for upload in uploads]
 
     gait_pose = call_tool(
         "get_sequence_human_keypoints",

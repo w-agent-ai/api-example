@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,13 +19,15 @@ import (
 
 const (
 	// Public API endpoint. Change this to your own deployment if needed.
-	defaultBaseURL = "http://116.198.210.0:3005"
+	defaultBaseURL = "https://www.w-agent.cn/api"
 
 	// Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
-	defaultAPIKey = ""
+	// Change this value before building/running the demo.
+	defaultAPIKey = "gak_your_api_key"
 
 	// A sequence is a directory of cropped person images belonging to one track.
-	defaultSeqDir = "../../../seqs/nonuser/day_cl01/40-day_cl01-22949/imgs"
+	// Change this value, or pass a sequence directory as the first command-line argument.
+	defaultSeqDir = "./images"
 	timeout       = 10 * time.Minute
 
 	// When comparing two parsed sequences, compute face/gait/ReID dot products
@@ -32,7 +37,7 @@ const (
 )
 
 // uploadSlot is returned by POST /v1/sequences.
-// Each local image must be uploaded to the matching upload_url.
+// The object_key is passed to /parse after batch upload completes.
 type uploadSlot struct {
 	Index     int    `json:"index"`
 	ObjectKey string `json:"object_key"`
@@ -65,16 +70,6 @@ type sequenceResult struct {
 	Emotions    []int     `json:"emotions"`
 }
 
-// gaitPoseResult is returned by POST /v1/sequences/{task_id}/gait-pose.
-// It is billed separately from full gait sequence parsing and only returns pose data.
-type gaitPoseResult struct {
-	SequenceID string      `json:"sequence_id"`
-	FrameCount int         `json:"frame_count"`
-	Pose2Ds    [][]float64 `json:"pose_2ds"`
-	Pose3Ds    [][]float64 `json:"pose_3ds"`
-	Emotions   []int       `json:"emotions"`
-}
-
 func main() {
 	client := &http.Client{Timeout: timeout}
 	apiKey := registeredAPIKey()
@@ -87,30 +82,19 @@ func main() {
 		must(fmt.Errorf("no image frames under %s", seqDir))
 	}
 
-	// Step 2: create a sequence task. The server returns pre-signed upload URLs.
+	// Step 2: create a sequence task. The server returns upload slots.
 	var created createSequenceResponse
 	must(doJSON(client, apiKey, http.MethodPost, "/v1/sequences", map[string]any{"frame_count": len(frames)}, &created))
 	if len(created.Uploads) != len(frames) {
 		must(fmt.Errorf("upload count mismatch: api=%d local=%d", len(created.Uploads), len(frames)))
 	}
 
-	// Step 3: upload every frame, then build the frames payload for parsing.
+	// Step 3: upload all frames once, then build the frames payload for parsing.
+	must(uploadFramesBatch(client, created.TaskID, uploadTokenFromUploads(created.Uploads), frames))
 	parseFrames := make([]parseFrame, 0, len(frames))
-	for i, frame := range frames {
-		slot := created.Uploads[i]
-		must(uploadFile(client, slot.UploadURL, frame))
+	for _, slot := range created.Uploads {
 		parseFrames = append(parseFrames, parseFrame{Index: slot.Index, ObjectKey: slot.ObjectKey})
 	}
-
-	var gaitPose struct {
-		TaskID string         `json:"task_id"`
-		Status string         `json:"status"`
-		Result gaitPoseResult `json:"result"`
-	}
-
-	// Step 4: call the standalone Gait Pose API. This is a separate billable
-	// operation from full gait sequence parsing and returns only pose outputs.
-	must(doJSON(client, apiKey, http.MethodPost, "/v1/sequences/"+created.TaskID+"/gait-pose", map[string]any{"frames": parseFrames}, &gaitPose))
 
 	var parsed struct {
 		TaskID        string           `json:"task_id"`
@@ -119,23 +103,24 @@ func main() {
 		Sequences     []sequenceResult `json:"sequences"`
 	}
 
-	// Step 5: start synchronous gait sequence parsing. Registered users are billed
-	// from their account balance by the server.
-	must(doJSON(client, apiKey, http.MethodPost, "/v1/sequences/"+created.TaskID+"/parse", map[string]any{"frames": parseFrames}, &parsed))
-
-	// Step 6: fetch the stored result. This is useful if the caller wants to
-	// retrieve the result again later by task_id.
 	var result struct {
 		TaskID        string           `json:"task_id"`
 		Status        string           `json:"status"`
 		SequenceCount int              `json:"sequence_count"`
 		Sequences     []sequenceResult `json:"sequences"`
 	}
+	var first sequenceResult
+	// Step 4: start synchronous gait sequence parsing. Registered users are billed
+	// from their account balance by the server.
+	must(doJSON(client, apiKey, http.MethodPost, "/v1/sequences/"+created.TaskID+"/parse", map[string]any{"frames": parseFrames}, &parsed))
+
+	// Step 5: fetch the stored result. This is useful if the caller wants to
+	// retrieve the result again later by task_id.
 	must(doJSON(client, apiKey, http.MethodGet, "/v1/sequences/"+created.TaskID+"/result", nil, &result))
 	if len(result.Sequences) == 0 {
 		panic("sequence result is empty")
 	}
-	first := result.Sequences[0]
+	first = result.Sequences[0]
 
 	fmt.Printf("task_id=%s\n", created.TaskID)
 	fmt.Printf("status=%s\n", parsed.Status)
@@ -146,9 +131,6 @@ func main() {
 	fmt.Printf("reid_feature_dim=%d\n", len(first.ReIDFeature))
 	fmt.Printf("face_feature_dim=%d\n", len(first.FaceFeature))
 	fmt.Printf("same_person_threshold=%.2f\n", samePersonThreshold)
-	fmt.Printf("gait_pose_status=%s\n", gaitPose.Status)
-	fmt.Printf("gait_pose_pose2d_frames=%d\n", len(gaitPose.Result.Pose2Ds))
-	fmt.Printf("gait_pose_pose3d_frames=%d\n", len(gaitPose.Result.Pose3Ds))
 }
 
 // doJSON sends an authenticated JSON request to the registered-user API.
@@ -186,58 +168,87 @@ func doJSON(client *http.Client, apiKey string, method string, path string, body
 }
 
 func registeredAPIKey() string {
-	apiKey := strings.TrimSpace(os.Getenv("GAIT_REGISTERED_API_KEY"))
-	if apiKey == "" {
-		apiKey = defaultAPIKey
-	}
-	if apiKey == "" {
-		must(fmt.Errorf("export GAIT_REGISTERED_API_KEY before running this demo"))
+	apiKey := strings.TrimSpace(defaultAPIKey)
+	if apiKey == "" || apiKey == "gak_your_api_key" {
+		must(fmt.Errorf("edit defaultAPIKey in sequence_demo/main.go before running this demo"))
 	}
 	return apiKey
 }
 
 func baseURL() string {
-	value := strings.TrimSpace(os.Getenv("GAIT_API_BASE_URL"))
-	if value == "" {
-		value = defaultBaseURL
-	}
-	return value
+	return strings.TrimRight(defaultBaseURL, "/")
 }
 
 func sequenceDir() string {
-	value := strings.TrimSpace(os.Getenv("GAIT_SEQUENCE_DIR"))
-	if value == "" {
-		value = defaultSeqDir
+	if len(os.Args) > 1 && strings.TrimSpace(os.Args[1]) != "" {
+		return os.Args[1]
 	}
-	return value
+	return defaultSeqDir
 }
 
-// uploadFile sends one frame to the upload_url returned by the create API.
-// Upload URLs are service-relative paths in this deployment.
-func uploadFile(client *http.Client, uploadPath string, filename string) error {
-	data, err := os.ReadFile(filename)
+func uploadFramesBatch(client *http.Client, taskID string, uploadToken string, frames []string) error {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("upload_token", uploadToken); err != nil {
+		return err
+	}
+	for i, filename := range frames {
+		file, err := os.Open(filename)
+		if err != nil {
+			return err
+		}
+		contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(filename)))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		header := make(textproto.MIMEHeader)
+		header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="frames"; filename="%06d%s"`, i, strings.ToLower(filepath.Ext(filename))))
+		header.Set("Content-Type", contentType)
+		part, err := writer.CreatePart(header)
+		if err != nil {
+			file.Close()
+			return err
+		}
+		if _, err := io.Copy(part, file); err != nil {
+			file.Close()
+			return err
+		}
+		file.Close()
+		_ = contentType
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+	path := "/v1/sequences/" + taskID + "/uploads/batch"
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(baseURL(), "/")+path, &body)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPut, strings.TrimRight(baseURL(), "/")+"/"+strings.TrimLeft(uploadPath, "/"), bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(filename)))
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Authorization", "Bearer "+registeredAPIKey())
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	data, _ = io.ReadAll(resp.Body)
+	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP %d PUT %s\n%s", resp.StatusCode, uploadPath, string(data))
+		return fmt.Errorf("HTTP %d POST %s\n%s", resp.StatusCode, path, string(respBody))
 	}
 	return nil
+}
+
+func uploadTokenFromUploads(uploads []uploadSlot) string {
+	if len(uploads) == 0 {
+		must(fmt.Errorf("create response has no upload slots"))
+	}
+	parsed, err := url.Parse(uploads[0].UploadURL)
+	must(err)
+	token := parsed.Query().Get("token")
+	if token == "" {
+		must(fmt.Errorf("upload_url has no token"))
+	}
+	return token
 }
 
 // collectFrames returns image files in deterministic name order.

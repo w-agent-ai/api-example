@@ -473,32 +473,45 @@ WHERE partition_name = 'usage_records_2025_06';
 - [examples/registered](/home/watrix/tiandk/agent/gaitAgent/examples/registered)：注册用户，使用 `Authorization: Bearer <api_key>` 调用私有接口。
 - [examples/anonymous](/home/watrix/tiandk/agent/gaitAgent/examples/anonymous)：匿名 Agent，使用 public 接口并通过 x402 完成付款。
 
-页面下载入口：
+页面资源下载入口：
 
-- 用户门户：`http://116.198.210.0:3005/portal`
-- 注册用户全部 Demo：`/portal/demo-download?type=registered`
-- 注册用户 Python Demo：`/portal/demo-download?type=registered-python`
-- 注册用户 C++ Demo：`/portal/demo-download?type=cpp`
-- 注册用户 Go Demo：`/portal/demo-download?type=go`
-- 匿名 x402 全部 Demo：`/portal/demo-download?type=anonymous`
-- 匿名 x402 Python Demo：`/portal/demo-download?type=anonymous-python`
+- 用户门户：`https://www.w-agent.cn/portal`
+- 页面按“API 示例”和“客户端”拆成两个表格展示；客户端支持接入实时摄像头。客户端文件名较长时在单元格内换行，不使用横向滚动条。
+- 图搜万物 API Key Python：`/portal/demo-download?type=object-search-api-key-python`
+- 人体 2D/3D 关节点 API Key Python/C++/Go：`type=pose-api-key-python`、`type=pose-api-key-cpp`、`type=pose-api-key-go`
+- 步态识别 API Key Python/C++/Go：`type=gait-api-key-python`、`type=gait-api-key-cpp`、`type=gait-api-key-go`
+- 图搜万物 X402 Python：`/portal/demo-download?type=object-search-x402-python`
+- 人体 2D/3D 关节点 X402 Python：`/portal/demo-download?type=pose-x402-python`
+- 步态识别 X402 Python：`/portal/demo-download?type=gait-x402-python`
+- 图搜万物编译客户端：`type=object-search-client-windows`、`type=object-search-client-mac`
+- 人体关节点编译客户端：`type=pose-client-windows`、`type=pose-client-mac`
+- 步态识别编译客户端：`type=gait-client-windows`、`type=gait-client-mac`
 
-每个语言包按三类输入组织：
+编译客户端文件由运维上传到服务端固定目录。接口会返回对应目录下第一个非隐藏普通文件；目录为空时返回
+`404 client_binary_unavailable`。资源下载页每次请求 `/portal` 时检查这些目录：没有文件显示 `-`，有文件时显示真实文件名。上传或替换二进制后刷新页面即可看到最新状态。
+
+- 图搜万物 Windows：`/data/gaitagent/resource_downloads/clients/object-search/windows/`
+- 图搜万物 Mac：`/data/gaitagent/resource_downloads/clients/object-search/mac/`
+- 人体关节点 Windows：`/data/gaitagent/resource_downloads/clients/pose/windows/`
+- 人体关节点 Mac：`/data/gaitagent/resource_downloads/clients/pose/mac/`
+- 步态识别 Windows：`/data/gaitagent/resource_downloads/clients/gait/windows/`
+- 步态识别 Mac：`/data/gaitagent/resource_downloads/clients/gait/mac/`
+
+每个语言包按两类输入组织：
 
 - 输入序列：上传已经跟踪好的人形图片序列到 Sequence API。
-- 输入视频：直接上传完整视频到 Video API。
 - 本地视频转序列：先在本地从视频抽取人员序列，再上传序列到 Sequence API。
 
-### 6.1 注册用户 Python 序列与视频 API Demo
+### 6.1 注册用户 Python 序列 API Demo
 
 ```bash
-python3 examples/registered/python/sequence_and_video_api_demo.py
+python3 examples/registered/python/gait_sequence_api_demo.py
 ```
 
 默认配置：
 
-- API 地址：`http://116.198.210.0:3005`
-- API Key：写在脚本顶部，调用 `/v1/sequences` 和 `/v1/videos`
+- API 地址：`https://www.w-agent.cn/api`
+- API Key：写在脚本顶部，调用 `/v1/sequences`
 - 序列目录：`examples/seqs`
 - 视频目录：`examples/video`
 - 输出目录：`tmp/registered_batch_results`
@@ -506,7 +519,6 @@ python3 examples/registered/python/sequence_and_video_api_demo.py
 脚本行为：
 
 - 递归扫描 `examples/seqs` 下所有“最末级图片目录”，每个目录作为一个序列。
-- 递归扫描 `examples/video` 下所有视频文件。
 - 保存每个接口返回的完整 JSON。
 - 对序列结果计算 `gait_feature`、`reid_feature`、`face_feature` 的两两点积相似度。
 - 对每个视频内部的所有序列计算特征相似度。
@@ -522,22 +534,26 @@ python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_s
 
 ```bash
 cd examples/registered/go/sequence_demo
-./build.sh
+go build -o registered_sequence_demo main.go
 ./registered_sequence_demo
 ```
 
 ```bash
 cd examples/registered/go/video_demo
-./build.sh
+go build -o registered_video_demo main.go
 ./registered_video_demo
 ```
 
 Go Demo 不依赖第三方包，适合给客户快速参考接口调用方式。
 
-本地视频转序列后上传：
+本地视频输入示例包内不再使用 shell 脚本或环境变量。下载 Go 资源包后，修改源码顶部的 `apiKey`、`videoPath`，然后编译运行：
 
 ```bash
-./examples/registered/go/local_video_to_sequence_demo/run_local_video_to_sequence_api_demo.sh /path/to/video.mp4
+cd local_video_to_sequence_demo
+cmake -S cpp_detector -B cpp_detector/build -DCMAKE_BUILD_TYPE=Release
+cmake --build cpp_detector/build -j
+go build -o local_video_api_demo main.go
+./local_video_api_demo /path/to/video.mp4
 ```
 
 ### 6.3 注册用户 C++ Demo
@@ -552,7 +568,8 @@ sudo apt-get install -y libcurl4-openssl-dev nlohmann-json3-dev
 
 ```bash
 cd examples/registered/cpp/sequence_demo
-./build.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ./build/registered_sequence_demo
 ```
 
@@ -560,16 +577,20 @@ cd examples/registered/cpp/sequence_demo
 
 ```bash
 cd examples/registered/cpp/video_demo
-./build.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ./build/registered_video_demo
 ```
 
 C++ Demo 使用 CMake 编译，分别演示序列和视频的独立调用。
 
-本地视频转序列后上传：
+本地视频输入示例包内不再使用 shell 脚本或环境变量。下载 C++ 资源包后，修改 `local_video_api_demo.cpp` 顶部的 `kAPIKey`、`kVideoPath`，然后编译运行：
 
 ```bash
-./examples/registered/cpp/local_video_to_sequence_demo/run_local_video_to_sequence_api_demo.sh /path/to/video.mp4
+cd local_video_to_sequence_demo
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+./build/local_video_to_gait_api_demo /path/to/video.mp4
 ```
 
 ### 6.4 匿名 x402 Python Demo
@@ -582,13 +603,19 @@ C++ Demo 使用 CMake 编译，分别演示序列和视频的独立调用。
 pip install requests eth-account 'x402[evm]' web3
 ```
 
-序列与视频 x402 Demo：
+图搜万物 x402 Demo：
 
 ```bash
-python3 examples/anonymous/python/anonymous_sequence_and_video_x402_demo.py
+python3 examples/anonymous/python/anonymous_object_search_x402_demo.py
 ```
 
-单序列最小 Demo：
+人体 2D/3D 关节点 x402 Demo：
+
+```bash
+python3 examples/anonymous/python/anonymous_gait_pose_x402_demo.py
+```
+
+步态识别单序列 x402 Demo：
 
 ```bash
 python3 examples/anonymous/python/anonymous_sequence_x402_demo.py
@@ -606,11 +633,30 @@ python3 examples/anonymous/python/local_video_to_sequence_demo/local_video_to_se
 
 通过 `/portal/demo-download?type=browser-pose&open=1` 或 `/portal/demo-download?type=browser-gait&open=1` 打开的在线客户端不展示 API Key 输入。已登录用户会先用当前登录 session 读取 `/v1/me` 和 `/v1/me/api-keys`，自动选择 default 或第一个 active API Key 发起注册用户调用；未登录用户走免费试用接口。试用额度不足时提示登录后使用。客户端右上角未登录时显示“登录”，已登录时显示当前账号（优先邮箱，其次手机号、姓名和用户 ID）。
 
+资源下载页的“客户端”列不是网页客户端，而是编译好的 Windows/Mac 二进制客户端，下载类型为
+`object-search-client-windows`、`object-search-client-mac`、`pose-client-windows`、`pose-client-mac`、`gait-client-windows`、`gait-client-mac`。
+
+资源下载页的示例包链接显示 zip 文件名，不再显示统一的“下载”。示例包内部使用浅层目录：顶层目录是 zip 文件名去掉 `.zip`，例如 `gait-api-key-python/`；单算法包在根目录同时包含英文 `README.md` 和中文 `README.zh.md`，并且只说明当前算法，不混入其他算法的通用说明。功能子目录如果有独立使用入口，也同时提供中英文 README。步态识别和人体关节点的视频检测、跟踪、生成序列入口放在 Python ONNX Runtime 示例包和 C++ CPU ONNX Runtime 示例包里，Go 单算法包只保留已有序列图片直接调用 API 的示例。
+
+单算法包文档说明：
+
+- 已有序列图片：进入 `sequence_demo/` 或 `gait_pose_demo/`，修改 API Key 和序列目录后编译运行。
+- 输入视频：C++ 包进入 `local_video_to_sequence_demo/`，使用包内 Linux x64 CPU ONNX Runtime 和 `gait_detect.onnx` 本地检测、跟踪并调用 API；Go 包先使用 Python/C++ 本地视频转序列示例生成序列图片，再用 Go 示例调用对应 API。
+
 在线客户端左侧上传区域下方会展示服务端预生成的示例视频：人体关节点示例使用 `/portal/examples/pose-demo/manifest.json` 中的 source video、序列抓拍、pose JSON 和 2D/3D 视频；步态识别示例使用 `/portal/examples/gait-demo/manifest.json` 中的视频1/视频2示例、序列抓拍和预提取 feature。用户点击示例视频可直接查看序列、播放关节点结果或进行相似度比对；上传自有视频时仍走浏览器本地解析和 API 调用流程。
 
 注册用户余额不足时，图搜万物、人体关节点和步态识别都会弹出居中的“余额不足”提示，并提供跳转到充值页的链接。人体关节点余额不足不会把失败序列显示成空结果：如果已有成功结果则回退到上一条，否则清空 2D/3D 展示区。步态识别余额不足会保留抓拍卡片并显示“api调用失败”，不删除序列；用户充值后再次点击比对会重新尝试提取失败序列的特征。
 
-浏览器客户端、Python demo、C++ demo 和 Go demo 的本地 person detector 使用同一套检测模型。更新 C++ `persondet_weights.cpp` 后，应使用 `scripts/convert_persondet_weights.py` 同步生成 Python `persondet_weights.py` 和浏览器 `persondet_weights.js`，并通过 `/opt/emsdk/emsdk_env.sh` 激活 Emscripten 后执行 `examples/browser/client/build_persondet_wasm.sh` 重建 WASM。当前默认检测参数为 `score_threshold = 0.35`、`nms_threshold = 0.50`。
+浏览器客户端、Python 本地视频 demo 和 C++ 本地视频 demo 的 person detector 统一使用 `gait_detect.onnx`。浏览器端通过官方 `onnxruntime-web` WASM 推理，Python 示例通过 `onnxruntime` CPU 推理，C++ 示例通过包内 Linux x64 CPU ONNX Runtime 推理；人体关节点和步态识别的视频转序列流程都走同一个 ONNX 检测器。
+
+生产环境替换检测模型时，只更新部署资源目录，默认路径是 `/opt/gaitagent/portal/resources`，也可通过 `GAIT_PORTAL_RESOURCES_DIR` 覆盖。需要同时替换：
+
+- `/opt/gaitagent/portal/resources/examples/browser/client/gait_detect.onnx`
+- `/opt/gaitagent/portal/resources/examples/registered/python/local_video_to_sequence_demo/gait_detect.onnx`
+- `/opt/gaitagent/portal/resources/examples/anonymous/python/local_video_to_sequence_demo/gait_detect.onnx`
+- `/opt/gaitagent/portal/resources/examples/registered/cpp/local_video_to_sequence_demo/gait_detect.onnx`
+
+服务端在线客户端资源和资源下载包都会优先读取上述部署目录；代码目录下的 `examples/.../gait_detect.onnx` 只是开发环境和部署目录缺失时的 fallback 副本，不作为生产替换入口。替换后无需重启 `gait-api`，下一次请求 `/portal/browser-assets/gait_detect.onnx` 或资源下载 zip 时会读取新的部署目录文件。旧的 `persondet_weights.js` 和 `persondet_wasm.*` 只作为浏览器兼容 fallback，不再作为主路径。当前默认检测参数为 `score_threshold = 0.35`、`nms_threshold = 0.50`。
 
 ```bash
 curl -fsS "http://127.0.0.1:3006/portal/demo-download?type=browser-pose" -o w-agent-pose-browser-client.html
@@ -674,7 +720,7 @@ source /home/watrix/tiandk/agent/gaitAgent/algorithms/env.sh
   --poll 2s
 ```
 
-目录模式会直接从源视频抽帧生成关节点示例序列，不走 gait 视频解析，避免健身、站姿等静止动作被“有效步态”过滤掉。`--max-pose-frames 0` 表示全帧抽取，不跳帧；`--fps 30` 表示合成的 2D/3D 关节点视频按 30fps 写出。生成后的首页人体关节点 demo 会先展示示例视频列表；选择视频后展示该视频解析出的人体序列抓拍；选择抓拍后展示对应的 2D/3D 关节点结果。
+目录模式会直接从源视频抽帧生成关节点示例序列，避免健身、站姿等静止动作被“有效步态”过滤掉。`--max-pose-frames 0` 表示全帧抽取，不跳帧；`--fps 30` 表示合成的 2D/3D 关节点视频按 30fps 写出。生成后的首页人体关节点 demo 会先展示示例视频列表；选择视频后展示该视频的人体序列抓拍；选择抓拍后展示对应的 2D/3D 关节点结果。
 
 生成后检查：
 
@@ -759,21 +805,6 @@ ls -l /run/gaitagent/worker.sock
 
 - `algorithms/include/opencv4`
 - `algorithms/lib_64`
-
-### 8.4 视频结果还没好
-
-`GET /v1/public/videos/{task_id}/result` 在结果未就绪时会返回：
-
-- HTTP `409`
-- `code = result_not_ready`
-
-先轮询：
-
-- `GET /v1/public/videos/{task_id}`
-
-等 `status` 到 `succeeded` 再取结果。二阶段支付未完成时，状态响应会同时带
-`current_payment_phase = video_phase2`；真正扣费或返回支付挑战仍发生在
-`GET /v1/public/videos/{task_id}/result`。
 
 ## 9. 当前已知行为
 

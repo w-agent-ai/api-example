@@ -16,12 +16,13 @@ import (
 
 const (
 	// Public API endpoint. Change this to your own deployment if needed.
-	defaultBaseURL = "http://116.198.210.0:3005"
+	defaultBaseURL = "https://www.w-agent.cn/api"
 
 	// Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
-	defaultAPIKey = ""
+	defaultAPIKey = "gak_your_api_key"
 
 	// A video file is uploaded once, then parsed asynchronously by the server.
+	// Change this value, or pass a video path as the first command-line argument.
 	defaultVideoPath = "../../../video/0000.avi"
 	timeout          = 30 * time.Minute
 	pollInterval     = 2 * time.Second
@@ -57,9 +58,10 @@ func main() {
 
 	// Step 1: create a video task with filename, content type and file size.
 	// The server returns an upload_url for the video binary.
-	stat, err := os.Stat(defaultVideoPath)
+	videoPath := configuredVideoPath()
+	stat, err := os.Stat(videoPath)
 	must(err)
-	filename := filepath.Base(defaultVideoPath)
+	filename := filepath.Base(videoPath)
 	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(filename)))
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -74,7 +76,7 @@ func main() {
 
 	// Step 2: upload the whole video file, then notify the server that upload is
 	// complete. Registered video parsing is asynchronous.
-	must(uploadFile(client, baseURL, created.UploadURL, defaultVideoPath))
+	must(uploadFile(client, baseURL, created.UploadURL, videoPath))
 	must(doJSON(client, baseURL, apiKey, http.MethodPost, "/v1/videos/"+created.TaskID+"/complete", map[string]any{}, nil))
 
 	// Step 3: poll until the worker finishes parsing. HTTP 409 means the result
@@ -212,22 +214,22 @@ func doJSONAllow(client *http.Client, baseURL string, apiKey string, method stri
 }
 
 func registeredAPIKey() string {
-	apiKey := strings.TrimSpace(os.Getenv("GAIT_REGISTERED_API_KEY"))
-	if apiKey == "" {
-		apiKey = defaultAPIKey
-	}
-	if apiKey == "" {
-		must(fmt.Errorf("export GAIT_REGISTERED_API_KEY before running this demo"))
+	apiKey := strings.TrimSpace(defaultAPIKey)
+	if apiKey == "" || apiKey == "gak_your_api_key" {
+		must(fmt.Errorf("edit defaultAPIKey in video_demo/main.go before running this demo"))
 	}
 	return apiKey
 }
 
 func apiBaseURL() string {
-	baseURL := strings.TrimSpace(os.Getenv("GAIT_API_BASE_URL"))
-	if baseURL == "" {
-		baseURL = defaultBaseURL
+	return strings.TrimRight(defaultBaseURL, "/")
+}
+
+func configuredVideoPath() string {
+	if len(os.Args) > 1 && strings.TrimSpace(os.Args[1]) != "" {
+		return os.Args[1]
 	}
-	return strings.TrimRight(baseURL, "/")
+	return defaultVideoPath
 }
 
 // uploadFile sends the video to the upload_url returned by the create API.

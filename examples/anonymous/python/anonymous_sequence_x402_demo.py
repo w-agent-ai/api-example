@@ -21,7 +21,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from eth_account import Account
@@ -31,10 +31,18 @@ from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
 
 
-# Fill these values directly when testing on another machine.
+# Fill in the payer wallet private key. The x402 client uses it only to sign the
+# payment challenge returned by the API; it is not sent as plain text.
 EVM_PRIVATE_KEY = ""
-BASE_URL = "http://116.198.210.0:3005"
-SEQ_DIR = Path(__file__).resolve().parents[2] / "seqs" / "nonuser" / "day_cl01" / "40-day_cl01-22949" / "imgs"
+
+# Public API base URL. Keep /api at the end when using the official website.
+BASE_URL = "https://www.w-agent.cn/api"
+
+# Directory containing one tracked person's ordered crop images.
+# The demo uploads every image under this directory as one sequence.
+SEQ_DIR = Path("./images")
+
+# Network timeout in seconds for upload and paid parse calls.
 TIMEOUT = 120
 
 ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -55,6 +63,8 @@ def main() -> int:
     print(f"seq_dir={SEQ_DIR}")
     print(f"frame_count={len(frames)}")
 
+    # Public sequence APIs are task-based: create upload slots first, upload the
+    # frames, then call the paid parse endpoint.
     task = create_public_task(len(frames))
     print(f"task_id={task['task_id']}")
     print(f"task_token={task['task_token']}")
@@ -63,8 +73,11 @@ def main() -> int:
     if len(uploads) != len(frames):
         raise RuntimeError(f"upload count mismatch: {len(uploads)} != {len(frames)}")
 
-    upload_frames(uploads, frames)
+    upload_frames(task["task_id"], task["task_token"], uploads, frames)
 
+    # Register an EVM signer with the official x402 Python client. The wrapped
+    # requests session below will automatically handle the 402 challenge flow:
+    # first request -> receive payment challenge -> sign -> retry with payment.
     signer = EthAccountSigner(Account.from_key(private_key))
     client = x402ClientSync()
     register_exact_evm_client(client, signer)
@@ -80,9 +93,13 @@ def main() -> int:
         ]
     }
 
+    # Optional: preview the 402 challenge before the paid call. This prints the
+    # supported network/token choices and helps users check wallet readiness.
     preview_parse_challenge(task["task_id"], task["task_token"], parse_payload)
 
     print("starting paid parse...")
+    # x402_requests behaves like requests.Session, but it retries paid endpoints
+    # after signing the PAYMENT-SIGNATURE header.
     with x402_requests(client) as session:
         response = session.post(
             parse_url,
@@ -117,6 +134,7 @@ def collect_frames(seq_dir: Path) -> list[Path]:
 
 
 def create_public_task(frame_count: int) -> dict:
+    # Only frame_count is sent here. Images are uploaded in the next step.
     response = requests.post(
         f"{BASE_URL}/v1/public/sequences",
         json={"frame_count": frame_count},
@@ -126,18 +144,38 @@ def create_public_task(frame_count: int) -> dict:
     return response.json()
 
 
-def upload_frames(uploads: Iterable[dict], frames: list[Path]) -> None:
-    for upload, frame_path in zip(uploads, frames):
-        upload_url = urljoin(BASE_URL + "/", str(upload["upload_url"]).lstrip("/"))
-        content_type = detect_content_type(frame_path)
-        response = requests.put(
-            upload_url,
-            headers={"Content-Type": content_type},
-            data=frame_path.read_bytes(),
+def upload_frames(task_id: str, task_token: str, uploads: Iterable[dict], frames: list[Path]) -> None:
+    # Batch upload sends all sequence images in one multipart request. The API
+    # maps frames by multipart order, so filenames are only for human readability.
+    uploads = list(uploads)
+    files = []
+    handles = []
+    try:
+        for index, frame in enumerate(frames):
+            handle = frame.open("rb")
+            handles.append(handle)
+            files.append(("frames", (f"{index:06d}{frame.suffix.lower()}", handle, detect_content_type(frame))))
+        response = requests.post(
+            f"{BASE_URL}/v1/public/sequences/{task_id}/uploads/batch",
+            headers={"X-Task-Token": task_token},
+            data={"upload_token": upload_token_from_uploads(uploads)},
+            files=files,
             timeout=TIMEOUT,
         )
         response.raise_for_status()
-        print(f"uploaded[{upload['index']}]={frame_path.name}")
+    finally:
+        for handle in handles:
+            handle.close()
+    print(f"uploaded_batch={len(frames)}")
+
+
+def upload_token_from_uploads(uploads: list[dict]) -> str:
+    if not uploads:
+        raise RuntimeError("create sequence response has no upload slots")
+    token = parse_qs(urlparse(str(uploads[0]["upload_url"])).query).get("token", [""])[0]
+    if not token:
+        raise RuntimeError("upload_url has no token")
+    return token
 
 
 def preview_parse_challenge(task_id: str, task_token: str, parse_payload: dict) -> None:

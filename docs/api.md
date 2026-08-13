@@ -2,13 +2,11 @@
 
 ## Overview
 
-This document defines the W-Agent V1 public API for hosted video parsing,
-tracked person sequence parsing, identity features, human 2D/3D keypoints, and
-Object Search.
+This document defines the W-Agent V1 public API for tracked person sequence
+parsing, identity features, human 2D/3D keypoints, and Object Search.
 
 Supported capabilities:
 
-- Video parsing: asynchronous
 - Sequence parsing: synchronous
 
 Supported payment modes:
@@ -18,8 +16,8 @@ Supported payment modes:
 
 Access model:
 
-- Registered-user task APIs are only available on private routes under `/v1/videos` and `/v1/sequences`.
-- Anonymous callers and agents must use `/v1/public/videos` and `/v1/public/sequences`.
+- Registered-user task APIs are available on private routes under `/v1/sequences`.
+- Anonymous callers and agents must use `/v1/public/sequences`, `/v1/public/object-search`, `/v1/public/features/face`, or `/v1/public/features/reid`.
 - There is no supported "anonymous but non-public" task mode.
 
 Current provider support:
@@ -32,8 +30,7 @@ Current provider support:
 
 For API callers, W-Agent has three main workflows:
 
-- Sequence workflow: create a sequence task, upload ordered person frames to the returned upload URLs, then call `/parse` for identity features or `/gait-pose` for keypoints.
-- Video workflow: create a video task, upload the video, complete the upload, poll status, then fetch the result after processing succeeds.
+- Sequence workflow: create a sequence task, batch-upload ordered person frames with `/uploads/batch`, then call `/parse` for identity features or `/gait-pose` for keypoints.
 - Object Search workflow: send one image plus a text prompt and read returned bounding boxes.
 
 The implementation details behind task storage, workers, and cleanup are not
@@ -101,41 +98,39 @@ For agents and first-time users, choose by intent instead of API name:
 
 - To decide whether two tracks are the same person, use gait/face/ReID features from sequence parsing. Do not compare raw images or generic image embeddings.
 - To get stable person sequences from a video, prefer local video preprocessing first: detect, track, crop, write one folder per person sequence, then upload each folder to the Sequence API.
-- To extract 2D/3D keypoints, upload a sequence first and call `POST /v1/sequences/{task_id}/gait-pose`. Do not expect sequence parsing or video parsing to be the keypoint endpoint.
+- To extract 2D/3D keypoints, upload a sequence first and call `POST /v1/sequences/{task_id}/gait-pose`.
 - To find objects or people by text in a single image, use Object Search.
 - To call as a registered user, use `Authorization: Bearer <api_key>` on registered routes and pay from account balance.
 - To call anonymously, use public routes, handle HTTP 402 `payment_context`, sign an x402 payment, and retry the same HTTP request.
 
-W-Agent's core input for identity and pose APIs is a tracked person sequence, not an arbitrary full scene image. A full video is one possible source for generating those sequences.
+W-Agent's core input for identity and pose APIs is a tracked person sequence, not an arbitrary full scene image.
 
 Task decision table:
 
 | User intent | Recommended API | Notes |
 | --- | --- | --- |
 | Judge whether two tracks are the same person | `POST /v1/sequences/{task_id}/parse` | Compare same-type `gait_feature`, `face_feature`, or `reid_feature` by dot product. |
-| Get identity features from a full video | Local video-to-sequence demo + Sequence API, or `/v1/videos` for server-side async parsing | Local preprocessing is easier for agents that need sequence folders and JSON files side by side. |
-| Get every person's 2D/3D keypoints from a video | Local video-to-sequence demo + `POST /v1/sequences/{task_id}/gait-pose` | Do not expect video parsing to return complete per-person pose arrays. |
+| Get identity features from a local video | Local video-to-sequence demo + Sequence API | Local preprocessing creates sequence folders and JSON files side by side. |
+| Get every person's 2D/3D keypoints from a local video | Local video-to-sequence demo + `POST /v1/sequences/{task_id}/gait-pose` | Split the video into one sequence per person first. |
 | Find targets in one image by text | `POST /v1/object-search` | Returns one or more boxes in uploaded image coordinates. |
 | Compare whether two raw images look alike | Not a W-Agent identity workflow | Do not replace identity matching with raw pixel or generic image similarity. |
 
 ## Agent Quickstart: Parse Local Sequences And Compare
 
 The demo package contains small public sequence data under
-`examples/sample_sequences`. These sequences are intended to return valid
+`examples/seqs`. These sequences are intended to return valid
 `gait_feature` and `reid_feature` results.
 
 Run the compact Python demo:
 
 ```bash
-export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
-export GAIT_REGISTERED_API_KEY='gak_your_api_key'
-python3 examples/registered/python/sequence_similarity_demo.py examples/sample_sequences
+python3 examples/registered/python/gait_sequence_api_demo.py
 ```
 
 The sequence API flow is:
 
 1. `POST /v1/sequences` with `{"frame_count": N}`.
-2. `PUT` each image to the returned `uploads[].upload_url`.
+2. Upload all images once with `POST /v1/sequences/{task_id}/uploads/batch` as `multipart/form-data`.
 3. Keep each returned `uploads[].object_key`.
 4. `POST /v1/sequences/{task_id}/parse` with `frames[].index` and `frames[].object_key`.
 5. Read features from `response.sequences[]`, for example `response.sequences[0].gait_feature`.
@@ -148,6 +143,7 @@ Similarity:
 - `face_feature` compares only with `face_feature`.
 - `reid_feature` compares only with `reid_feature`.
 - Use dot product: `sum(a * b for a, b in zip(feature_a, feature_b))`.
+- For face similarity display, convert the face dot product with `min(dot_product * 2, 1)` before formatting as a percentage.
 - `face_feature` can be `null` or empty when no usable face is detected; this is not an API failure.
 
 Common first-use errors:
@@ -173,22 +169,17 @@ comparison, pose extraction, or batch review:
 Registered Python example:
 
 ```bash
-export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
-export GAIT_REGISTERED_API_KEY='gak_your_api_key'
+# Edit API_KEY, BASE_URL, and the input path constants in the demo file first.
 python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
 ```
 
 The local video-to-sequence demos are the recommended path when the caller wants
-control over local decoding, detection, tracking, and output folders. Direct
-`/v1/videos` upload is still supported for asynchronous server-side video
-parsing, but it is not the simplest path for agents that need per-sequence local
-files and JSON side by side.
+control over local decoding, detection, tracking, and output folders.
 
 Boundary:
 
-- Video parsing is mainly for asynchronous full-video identity parsing and sequence/result asset extraction.
 - If the goal is pose for every person sequence, use the local video-to-sequence demo and call Gait Pose on each sequence.
-- If the caller needs deterministic local output folders, use local preprocessing instead of server-side video parsing.
+- If the caller needs deterministic local output folders, use local preprocessing.
 
 ## Quickstart: Video To Each Person's 2D/3D Keypoints
 
@@ -198,25 +189,22 @@ keypoints for every person sequence."
 Recommended flow:
 
 1. Download or open the registered Python demo package.
-2. Run `local_video_to_sequence_api_demo.py`.
+2. Run `local_video_to_gait_pose_api_demo.py`.
 3. The demo performs local person detection, tracking, and cropping.
 4. The demo creates one `sequence_XXX` folder per person track.
-5. Upload each sequence folder with `POST /v1/sequences` and `PUT uploads[].upload_url`.
+5. Upload each sequence folder with `POST /v1/sequences`, then `POST /v1/sequences/{task_id}/uploads/batch` as `multipart/form-data`.
 6. Call `POST /v1/sequences/{task_id}/gait-pose` for each uploaded sequence.
 7. Save each sequence's `result.json`, `pose_2d.csv`, and `pose_3d.csv` beside its frames.
 
 Command:
 
 ```bash
-export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
-export GAIT_REGISTERED_API_KEY='gak_your_api_key'
-python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_sequence_api_demo.py /path/to/video.mp4
+# Edit API_KEY, BASE_URL, and the input path constants in the demo file first.
+python3 examples/registered/python/local_video_to_sequence_demo/local_video_to_gait_pose_api_demo.py /path/to/video.mp4
 ```
 
-Do not directly upload a multi-person video and expect video parsing to return
-complete per-sequence `pose_2ds` / `pose_3ds`. Video parse is intended for
-server-side asynchronous identity/video parsing. Gait Pose is a sequence API and
-is clearest when called on locally detected and tracked sequence images.
+Gait Pose is a sequence API and is clearest when called on locally detected and
+tracked sequence images.
 
 Sequence input requirements for identity and pose APIs:
 
@@ -244,27 +232,7 @@ output/
 
 ## Task Types
 
-- `video`
 - `sequence`
-
-## Video Workflow
-
-1. Client creates a video task.
-2. Service returns object storage upload information.
-3. Client uploads the video with `PUT /v1/video-uploads/{task_id}?token=...`.
-4. Service extracts video metadata and creates phase 1 billing.
-5. Registered users are auto-debited from wallet; public tasks wait for explicit payment settlement.
-6. Service processes the video asynchronously.
-7. Service stores result summary and creates phase 2 billing.
-8. After phase 2 payment, the full result JSON is returned.
-
-Video `size_bytes` and the actual upload body are both capped at 512 MB. Oversized uploads are rejected with `413 payload_too_large`; they are not saved as truncated files.
-9. Media and results are deleted after retention expires.
-
-Delete endpoints:
-
-- `DELETE /v1/videos/{task_id}`
-- `DELETE /v1/public/videos/{task_id}` with `X-Task-Token`
 
 ## Sequence Workflow
 
@@ -350,18 +318,64 @@ Management endpoints:
 
 - `GET /admin`
 - `GET /portal`
-- `GET /portal/demo-download?type=registered`
-- `GET /portal/demo-download?type=registered-python`
-- `GET /portal/demo-download?type=cpp`
-- `GET /portal/demo-download?type=go`
-- `GET /portal/demo-download?type=anonymous`
-- `GET /portal/demo-download?type=anonymous-python`
-- `GET /portal/demo-download?type=browser-pose`
-- `GET /portal/demo-download?type=browser-gait`
+- `GET /portal/demo-download?type=object-search-api-key-python`
+- `GET /portal/demo-download?type=pose-api-key-python`
+- `GET /portal/demo-download?type=pose-api-key-cpp`
+- `GET /portal/demo-download?type=pose-api-key-go`
+- `GET /portal/demo-download?type=gait-api-key-python`
+- `GET /portal/demo-download?type=gait-api-key-cpp`
+- `GET /portal/demo-download?type=gait-api-key-go`
+- `GET /portal/demo-download?type=face-api-key-python`
+- `GET /portal/demo-download?type=face-api-key-cpp`
+- `GET /portal/demo-download?type=reid-api-key-python`
+- `GET /portal/demo-download?type=reid-api-key-cpp`
+- `GET /portal/demo-download?type=reid-api-key-go`
+- `GET /portal/demo-download?type=object-search-x402-python`
+- `GET /portal/demo-download?type=face-x402-python`
+- `GET /portal/demo-download?type=reid-x402-python`
+- `GET /portal/demo-download?type=pose-x402-python`
+- `GET /portal/demo-download?type=gait-x402-python`
+- `GET /portal/demo-download?type=object-search-client-windows`
+- `GET /portal/demo-download?type=object-search-client-mac`
+- `GET /portal/demo-download?type=pose-client-windows`
+- `GET /portal/demo-download?type=pose-client-mac`
+- `GET /portal/demo-download?type=gait-client-windows`
+- `GET /portal/demo-download?type=gait-client-mac`
 
 `type=browser-pose` and `type=browser-gait` return standalone HTML files
-directly. `type=browser` is kept as a compatibility alias for the gait browser
-client. Other demo download types return ZIP packages.
+directly for the online browser client entry used by the homepage. `type=browser`
+is kept as a compatibility alias for the gait browser client.
+
+Compiled client download types read the first non-hidden regular file from these
+server directories and return `404 client_binary_unavailable` until a binary is
+uploaded. The resource download page checks these directories on each `/portal`
+request; empty directories render as `-`, and directories with a file render a
+link with the real file name. Refresh the page after uploading or replacing
+client binaries.
+
+- `object-search-client-windows`: `/data/gaitagent/resource_downloads/clients/object-search/windows/`
+- `object-search-client-mac`: `/data/gaitagent/resource_downloads/clients/object-search/mac/`
+- `pose-client-windows`: `/data/gaitagent/resource_downloads/clients/pose/windows/`
+- `pose-client-mac`: `/data/gaitagent/resource_downloads/clients/pose/mac/`
+- `gait-client-windows`: `/data/gaitagent/resource_downloads/clients/gait/windows/`
+- `gait-client-mac`: `/data/gaitagent/resource_downloads/clients/gait/mac/`
+
+Other resource download types return ZIP packages.
+
+Resource links display the actual ZIP file name, such as
+`gait-api-key-python.zip`. ZIP packages use that file name without
+`.zip` as the top-level folder and strip the long source prefixes like
+`examples/registered/python/` or `examples/anonymous/python/`. Each
+single-algorithm ZIP package includes both `README.md` and `README.zh.md` at
+the package root. Those README files are algorithm-specific; for example the
+gait package documents only gait recognition, and the face package documents
+only face recognition. Subdirectories that are useful as standalone entrypoints
+also include English and Chinese README files. Pose and gait Python packages
+include both existing-sequence API examples and local-video detection/tracking
+examples that generate sequences before calling the API.
+ReID packages provide single-person image feature demos only.
+Anonymous x402 Python packages are split by algorithm: Object Search, face
+feature, ReID feature, gait sequence parsing, and gait-pose.
 
 GET endpoints also accept `HEAD` for lightweight URL probing. `HEAD` returns
 the same status and headers as `GET` with an empty response body.
@@ -379,9 +393,6 @@ the same status and headers as `GET` with an empty response body.
 - `GET /v1/admin/users/{user_id}/ledger`
 - `GET /v1/admin/users/{user_id}/deposits`
 - `POST /v1/admin/users/{user_id}/deposits/{deposit_id}/settle`
-- `GET /v1/admin/videos`
-- `GET /v1/admin/videos/{task_id}`
-- `DELETE /v1/admin/videos/{task_id}`
 - `GET /v1/admin/sequences`
 - `GET /v1/admin/sequences/{task_id}`
 - `DELETE /v1/admin/sequences/{task_id}`
@@ -403,7 +414,6 @@ User self-service endpoints:
 - `POST /v1/me/api-keys/{key_id}/pause`
 - `POST /v1/me/api-keys/{key_id}/resume`
 - `DELETE /v1/me/api-keys/{key_id}`
-- `GET /v1/me/videos`
 - `GET /v1/me/sequences`
 - `POST /v1/object-search`
 
@@ -412,16 +422,21 @@ User self-service endpoints:
 - `limit`: positive integer, capped at `1000`; `all` is accepted for filtered views.
 - `start_date`, `end_date`: `YYYY-MM-DD`; when both are provided, the date span must not exceed 6 months.
 - `api_key_id`: restrict results to one API Key.
-- `reason_code` or `type`: restrict results to one billing reason, such as `sequence_once`, `gait_pose_once`, `video_phase1`, `video_phase2`, or `locate_anything`.
+- `reason_code` or `type`: restrict results to one billing reason, such as `sequence_once`, `gait_pose_once`, or `locate_anything`.
 - `keyword`: searches ledger reason/task/order/detail text.
 
 The user portal API Key usage dialog calls this endpoint with `api_key_id` and the current filters instead of loading all historical ledger rows in the browser.
 
 Public trial endpoints:
 
+- `POST /v1/public/object-search`
+- `POST /v1/public/features/face`
+- `POST /v1/public/features/reid`
 - `POST /v1/public/object-search/trial`
-- `POST /v1/public/sequences/trial/parse`
-- `POST /v1/public/sequences/trial/gait-pose`
+- `POST /v1/public/sequences`
+- `POST /v1/public/sequences/{task_id}/uploads/batch`
+- `POST /v1/public/trial/sequences/{task_id}/parse`
+- `POST /v1/public/trial/sequences/{task_id}/gait-pose`
 
 Portal behavior:
 
@@ -442,25 +457,6 @@ Deployment config:
 - `GAIT_RUNTIME_CONFIG_PATH`
 
 ## Status Model
-
-Video task statuses:
-
-- `created`
-- `uploaded`
-- `awaiting_payment_1`
-- `processing`
-- `succeeded`
-- `failed`
-- `expired`
-- `deleted`
-
-For compatibility with polling clients, `GET /v1/videos/{task_id}` and
-`GET /v1/public/videos/{task_id}` return `status = succeeded` once SDK
-processing has finished, even when internal phase 2 payment is still pending.
-When phase 2 is still pending, `current_payment_phase` is `video_phase2` and
-the result endpoint still performs wallet settlement or returns payment
-required. The internal database state remains `succeeded_awaiting_payment_2`
-until phase 2 is settled.
 
 Sequence task statuses:
 
@@ -500,8 +496,9 @@ Environment variables:
 Runtime configuration includes pricing parameters for:
   - `sequence_per_k_frames`
   - `sequence_per_sequence`
-  - `video_per_k_frames`
   - `gait_pose_per_sequence`
+  - `face_per_k_frames`
+  - `reid_per_k_frames`
   - `currency`
   - `cny_usd_exchange_rate`
   - `eurc_usd_exchange_rate`
@@ -527,13 +524,6 @@ Runtime behavior:
 
 ## Billing Model
 
-Video parsing:
-
-- amount = `video_frame_count * video_per_k_frames / 1000`
-
-Video result fetch:
-
-- amount = `sequence_count * sequence_per_sequence + rounded_sequence_frames * sequence_per_k_frames / 1000`
 - `rounded_sequence_frames` is rounded up to 100-frame blocks; the frame-fee amount is rounded up to the next CNY minor unit
 - when `sequence_per_k_frames = 0`, the sequence frame fee is disabled and omitted from billing details
 
@@ -545,7 +535,7 @@ Sequence parsing:
 - current Sequence API accepts one input sequence per task, so `input_sequence_count = 1`
 - `output_sequence_count` is the number of split single-person sequences returned by `GetSplitSeqFeature`; for registered users, no valid output still bills as `1` sequence
 - registered users also have a monthly sequence feature extraction limit. The limit counts actual successful output sequences with gait features, not the billing minimum. Default is 100000 sequences per user per calendar month and can be changed in Admin runtime config.
-- registered video parsing uses the same monthly feature extraction limit. The first request that creates a registered sequence or video task is rejected when the account has no usable CNY balance or has already reached the monthly feature limit.
+- registered sequence parsing is rejected when the account has no usable CNY balance or has already reached the monthly feature limit.
 
 Gait Pose:
 
@@ -562,15 +552,90 @@ Object Search:
 - trial quota is limited by cumulative amount for the same IP and algorithm bucket; daily request and daily frame limits are not enforced
 - Gait Pose is a separate endpoint and is billed independently from full gait sequence parsing
 
+Face Recognition:
+
+- endpoint: `POST /v1/features/face`
+- anonymous x402 endpoint: `POST /v1/public/features/face`
+- no-registration trial endpoint: `POST /v1/public/features/trial/face`
+- input: one corrected/aligned face image in `image_base64`
+- output: `feature_dim = 512`, `feature` contains 512 float values
+- similarity display: compute same-type feature dot product, then use `min(dot_product * 2, 1)` as the percentage base
+- amount = `ceil(face_per_k_frames * 1 / 1000)` CNY minor units
+- default price is `¥1.00 / 1000 images`; a single image is rounded up to `¥0.01`
+- API examples include Python and C++ packages. They use `face_detect.onnx` with ONNX Runtime CPU for local face detection and five-point landmark detection, then align the face before calling the feature endpoint.
+- `face_detect.onnx` is generated from Shiqi Yu libfacedetection `facedetectcnn-data.cpp`; pre-processing and post-processing remain in the client example code.
+
+ReID Recognition:
+
+- endpoint: `POST /v1/features/reid`
+- anonymous x402 endpoint: `POST /v1/public/features/reid`
+- no-registration trial endpoint: `POST /v1/public/features/trial/reid`
+- input: one person image in `image_base64`
+- output: `feature_dim = 512`, `feature` contains 512 float values
+- amount = `ceil(reid_per_k_frames * 1 / 1000)` CNY minor units
+- default price is `¥1.00 / 1000 images`; a single image is rounded up to `¥0.01`
+
 Registered user settlement:
 
 - `GET /v1/api-keys/current/status` checks whether a Bearer API Key is valid and currently usable without creating a task.
 - `POST /v1/sequences/{task_id}/parse` automatically charges the wallet before processing
 - `POST /v1/sequences/{task_id}/gait-pose` automatically charges the wallet before processing
+- `POST /v1/features/face` and `POST /v1/features/reid` synchronously extract one 512-dimensional feature and charge the wallet after successful SDK processing
 - `GET /v1/sequences/{task_id}/result` returns the stored sequence parse response for registered users without re-charging
-- `PUT /v1/video-uploads/{task_id}?token=...` automatically attempts phase 1 wallet settlement for registered users after upload completes
-- `POST /v1/videos/{task_id}/complete` retries registered user phase 1 wallet settlement after a topup
-- `GET /v1/videos/{task_id}/result` automatically attempts phase 2 wallet settlement before returning full result
+
+### POST /v1/features/face
+
+Extract a 512-dimensional face feature from one corrected/aligned face image.
+
+```json
+{
+  "image_base64": "/9j/4AAQSkZJRg..."
+}
+```
+
+Response:
+
+```json
+{
+  "task_id": "face_feature_1786000000000000000",
+  "status": "succeeded",
+  "feature_dim": 512,
+  "feature": [0.01, -0.02, 0.03],
+  "billing": {
+    "phase": "face_feature_once",
+    "amount": "1",
+    "currency": "CNY"
+  }
+}
+```
+
+### POST /v1/features/reid
+
+Extract a 512-dimensional ReID feature from one person image.
+
+```json
+{
+  "image_base64": "/9j/4AAQSkZJRg..."
+}
+```
+
+Response shape is the same as face recognition, with `phase = reid_feature_once`.
+
+### POST /v1/public/features/trial/face
+
+No-registration trial face feature extraction. Request body is the same as
+`POST /v1/features/face`, with optional `fingerprint`. The response returns
+`feature`, `feature_dim`, and a `trial` object with consumed and remaining trial
+amount. It consumes the independent `face_feature_once` trial bucket and does
+not charge a registered wallet.
+
+### POST /v1/public/features/trial/reid
+
+No-registration trial ReID feature extraction. Request body is the same as
+`POST /v1/features/reid`, with optional `fingerprint`. The response returns
+`feature`, `feature_dim`, and a `trial` object with consumed and remaining trial
+amount. It consumes the independent `reid_feature_once` trial bucket and does
+not charge a registered wallet.
 
 ### POST /v1/users/login
 
@@ -788,10 +853,11 @@ Pricing payload shape:
 ```json
 {
   "currency": "USD",
-  "video_per_k_frames": 4000,
   "sequence_per_k_frames": 2000,
   "sequence_per_sequence": 50,
-  "gait_pose_per_sequence": 1
+  "gait_pose_per_sequence": 1,
+  "face_per_k_frames": 100,
+  "reid_per_k_frames": 100
 }
 ```
 
@@ -882,370 +948,6 @@ ReID attribute keys, in order:
 21. `shoe_type`
 22. `shoe_color`
 
-## Registered Video APIs
-
-### POST /v1/videos
-
-Authentication required:
-
-- `Authorization: Bearer <api_key>`
-
-Request:
-
-```json
-{
-  "filename": "demo.mp4",
-  "content_type": "video/mp4",
-  "size_bytes": 12345678
-}
-```
-
-Response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "status": "created",
-  "object_key": "videos/vid_xxx/input.mp4",
-  "upload_url": "https://...",
-  "upload_expires_at": "2026-05-06T12:00:00Z"
-}
-```
-
-### PUT /v1/video-uploads/{task_id}?token=...
-
-Uploads the binary video body. This is the actual upload step for both registered and public video tasks.
-
-Registered-user behavior:
-
-- the service probes video metadata
-- creates phase 1 billing
-- automatically tries wallet deduction
-- if wallet balance is insufficient, returns `409 wallet_insufficient_balance`
-
-Successful response example:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "object_key": "videos/vid_xxx/input.bin",
-  "size_bytes": 12345678,
-  "status": "uploaded"
-}
-```
-
-### POST /v1/videos/{task_id}/complete
-
-Authentication required:
-
-- `Authorization: Bearer <api_key>`
-
-Purpose:
-
-- retry registered-user phase 1 wallet settlement after upload is already complete
-- current implementation does not upload media and does not require a request body
-
-Response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "status": "uploaded",
-  "current_payment_phase": null,
-  "video_meta": {
-    "frame_count": 1234,
-    "fps": 25.0,
-    "duration_ms": 49360,
-    "size_bytes": 12345678
-  },
-  "billing": {
-    "phase1": {
-      "status": "paid",
-      "amount": "12.34",
-      "currency": "USD"
-    },
-    "phase2": null
-  }
-}
-```
-
-### GET /v1/videos/{task_id}
-
-Authentication required:
-
-- `Authorization: Bearer <api_key>`
-
-Response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "status": "processing",
-  "progress": {
-    "percent": 76
-  },
-  "current_payment_phase": null,
-  "video_meta": {
-    "frame_count": 1234,
-    "fps": 25.0,
-    "duration_ms": 49360,
-    "size_bytes": 12345678
-  },
-  "billing": {
-    "phase1": {
-      "status": "paid",
-      "amount": "12.34",
-      "currency": "USD"
-    },
-    "phase2": null
-  },
-  "expire_at": "2026-05-06T12:00:00Z",
-  "delete_after_at": "2026-05-07T12:00:00Z"
-}
-```
-
-### GET /v1/videos/{task_id}/result
-
-Authentication required:
-
-- `Authorization: Bearer <api_key>`
-
-Response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "status": "succeeded",
-  "frame_count": 1234,
-  "sequence_count": 8,
-  "total_sequence_frames": 276,
-  "billing": {
-    "phase1": {
-      "status": "paid",
-      "amount": "12.34",
-      "currency": "USD"
-    },
-    "phase2": {
-      "status": "paid",
-      "amount": "5.67",
-      "currency": "USD"
-    }
-  },
-  "expires_at": "2026-05-06T12:00:00Z",
-  "sequences": [
-    {
-      "sequence_id": "seq_001",
-      "batch": 0,
-      "frame_count": 37,
-      "frames": [
-        {
-          "frame_id": 101,
-          "rect": {
-            "x": 12,
-            "y": 34,
-            "width": 56,
-            "height": 78
-          }
-        }
-      ],
-      "gait_feature": [],
-      "reid_feature": [],
-      "face_feature": [],
-      "reid_structure_raw": [],
-      "reid_attributes": [],
-      "reid_summary": "",
-      "emotions": [],
-      "gait_images": [],
-      "gait_image": {
-        "url": "https://...",
-        "expires_at": "2026-05-06T12:00:00Z"
-      },
-      "face_image": {
-        "url": "https://...",
-        "expires_at": "2026-05-06T12:00:00Z"
-      }
-    }
-  ]
-}
-```
-
-## Anonymous Video APIs
-
-### POST /v1/public/videos
-
-Request:
-
-```json
-{
-  "filename": "demo.mp4",
-  "content_type": "video/mp4",
-  "size_bytes": 12345678
-}
-```
-
-Response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "task_token": "tok_xxx",
-  "status": "created",
-  "object_key": "videos/vid_xxx/input.mp4",
-  "upload_url": "https://...",
-  "upload_expires_at": "2026-05-06T12:00:00Z"
-}
-```
-
-### PUT /v1/video-uploads/{task_id}?token=...
-
-For public video tasks, upload completes media ingest and creates phase 1 billing.
-
-Typical response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "object_key": "videos/vid_xxx/input.bin",
-  "size_bytes": 12345678,
-  "status": "awaiting_payment_1"
-}
-```
-
-### POST /v1/public/videos/{task_id}/settle-phase1
-
-Headers:
-
-- `X-Task-Token: <task_token>`
-
-Missing or invalid payment proof may return HTTP `402`.
-
-- `mock` provider typically returns `payment_verification_failed`
-- `x402` provider may return `payment_required`
-
-402 body:
-
-```json
-{
-  "error": {
-    "code": "payment_required",
-    "message": "phase1 payment required"
-  },
-  "payment_context": {
-    "provider": "mock",
-    "phase": "video_phase1",
-    "order_id": "ord_xxx",
-    "amount": "12.34",
-    "currency": "USD",
-    "expires_at": "2026-05-06T12:00:00Z",
-    "pricing_basis": {
-      "frame_count": 1234,
-      "billable_frame_count": 1234,
-      "rate_per_k_frames": 4000
-    },
-    "challenge": {
-      "mode": "mock",
-      "order_id": "ord_xxx"
-    }
-  }
-}
-```
-
-When provider is `x402`, the same `402` response also includes header `PAYMENT-REQUIRED`.
-
-Paid response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "status": "uploaded",
-  "order": {
-    "order_id": "ord_xxx",
-    "phase": "video_phase1",
-    "status": "paid",
-    "amount": "12.34",
-    "currency": "USD"
-  }
-}
-```
-
-### GET /v1/public/videos/{task_id}
-
-Headers:
-
-- `X-Task-Token: <task_token>`
-
-Response:
-
-```json
-{
-  "task_id": "vid_xxx",
-  "status": "succeeded",
-  "progress": {
-    "percent": 100
-  },
-  "current_payment_phase": "video_phase2",
-  "video_meta": {
-    "frame_count": 1234,
-    "fps": 25.0,
-    "duration_ms": 49360,
-    "size_bytes": 12345678
-  },
-  "expire_at": "2026-05-06T12:00:00Z",
-  "delete_after_at": "2026-05-07T12:00:00Z"
-}
-```
-
-### GET /v1/public/videos/{task_id}/result
-
-Headers:
-
-- `X-Task-Token: <task_token>`
-
-If phase 2 is unpaid, return HTTP `402`.
-
-402 body:
-
-```json
-{
-  "error": {
-    "code": "payment_required",
-    "message": "phase2 payment required"
-  },
-  "payment_context": {
-    "provider": "mock",
-    "phase": "video_phase2",
-    "order_id": "ord_yyy",
-    "amount": "5.67",
-    "currency": "USD",
-    "expires_at": "2026-05-06T12:00:00Z",
-    "pricing_basis": {
-      "sequence_count": 8,
-      "billable_sequences": 8,
-      "rate_per_sequence": 50,
-      "sequence_amount": 400,
-      "total_sequence_frames": 276,
-      "billable_frame_count": 300,
-      "rate_per_k_frames": 2000,
-      "frame_amount": 600
-    },
-    "challenge": {
-      "mode": "mock",
-      "order_id": "ord_yyy"
-    }
-  }
-}
-```
-
-If phase 2 is paid, return the same full result shape as the registered `GET /v1/videos/{task_id}/result`.
-
-### DELETE /v1/public/videos/{task_id}
-
-Headers:
-
-- `X-Task-Token: <task_token>`
-
-Marks the task for early cleanup.
-
 ## Registered Sequence APIs
 
 ### POST /v1/sequences
@@ -1283,6 +985,37 @@ Response:
     }
   ]
 }
+```
+
+### POST /v1/sequences/{task_id}/uploads/batch
+
+Authentication required:
+
+- `Authorization: Bearer <api_key>`
+
+Upload multiple sequence frames in one `multipart/form-data` request. The total
+batch request body must not exceed 32 MB.
+
+Fields:
+
+- `upload_token`: token parsed from `uploads[].upload_url`
+- `frames`: repeated file parts, in sequence order
+
+Frame indexes are assigned by multipart order. The first `frames` part is index
+0, the second is index 1, and so on. File names are ignored by the API.
+
+MCP JSON-RPC clients cannot send multipart file parts. Use the MCP tool
+`upload_sequence_frames_batch` with `frames[].content_base64`; it applies the
+same array-order indexing rule.
+
+Example:
+
+```bash
+curl -X POST "https://www.w-agent.cn/api/v1/sequences/seq_xxx/uploads/batch" \
+  -H "Authorization: Bearer gak_xxx" \
+  -F "upload_token=..." \
+  -F "frames=@./images/000000.jpg;type=image/jpeg" \
+  -F "frames=@./images/000001.jpg;type=image/jpeg"
 ```
 
 ### POST /v1/sequences/{task_id}/parse
@@ -1364,7 +1097,7 @@ Sequence result fields:
 
 - `sequences`: all split single-person sequences returned by `GetSplitSeqFeature`. One uploaded track can produce multiple outputs when tracking mixed different people or stray frames. This mainly handles tracking ID switches: when two people cross, the tracker may continue the same ID on another person; the backend uses ReID features to detect this and split the input at the switch point. Invalid or ambiguous frames may be dropped by the SDK.
 - `sequence_count`: number of returned `sequences`.
-- `frames`: frame IDs and optional boxes returned by the SDK for this output sequence. When the SDK does not return frame-level mapping, this field is an empty array and `frame_count` is `0`; clients should not assume it equals the uploaded input frame count.
+- `frames`: frame IDs and optional boxes returned by the SDK for this output sequence. When one input sequence is split into multiple output sequences, clients should use these frame IDs to map each returned sequence back to the original uploaded frames. When the SDK does not return frame-level mapping, this field is an empty array and `frame_count` is `0`.
 - `gait_feature`: for registered users, 512-dimensional gait features are rotated by the user's bound 512x512 orthogonal matrix before being returned. The same user gets stable rotated features across calls; different users get different rotations.
 - `emotions`: emotion output returned by the SDK.
 - `gait_images`: response-compatible field for per-frame gait crops. Public API responses currently keep it as an empty array and do not embed image bytes.
@@ -1381,7 +1114,7 @@ Runnable Python example:
 import math
 import os
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 
@@ -1401,12 +1134,28 @@ def request_json(session, method, path, **kwargs):
     return resp.json()
 
 
-def upload_binary(session, upload_url, path):
-    url = urljoin(BASE_URL.rstrip("/") + "/", upload_url.lstrip("/"))
-    with open(path, "rb") as f:
-        resp = session.put(url, data=f, headers={"Content-Type": "image/jpeg"}, timeout=120)
-    if resp.status_code >= 400:
-        raise RuntimeError(f"upload {path} failed: {resp.status_code} {resp.text}")
+def upload_token_from_uploads(uploads):
+    token = parse_qs(urlparse(str(uploads[0]["upload_url"])).query).get("token", [""])[0]
+    if not token:
+        raise RuntimeError("upload_url has no token")
+    return token
+
+
+def upload_frames_batch(session, task_id, upload_token, frames):
+    files = []
+    handles = []
+    try:
+        for index, path in enumerate(frames):
+            handle = path.open("rb")
+            handles.append(handle)
+            files.append(("frames", (f"{index:06d}{path.suffix.lower()}", handle, "image/jpeg")))
+        url = urljoin(BASE_URL.rstrip("/") + "/", f"v1/sequences/{task_id}/uploads/batch")
+        resp = session.post(url, data={"upload_token": upload_token}, files=files, timeout=120)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"batch upload failed: {resp.status_code} {resp.text}")
+    finally:
+        for handle in handles:
+            handle.close()
 
 
 def parse_sequence(image_dir):
@@ -1422,20 +1171,15 @@ def parse_sequence(image_dir):
 
     created = request_json(session, "POST", "/v1/sequences", json={"frame_count": len(frames)})
     task_id = created["task_id"]
-    parse_frames = []
-
-    for path, upload in zip(frames, created["uploads"]):
-        upload_binary(session, upload["upload_url"], path)
-        parse_frames.append({
-            "index": upload["index"],
-            "object_key": upload["object_key"],
-        })
+    uploads = created["uploads"]
+    upload_frames_batch(session, task_id, upload_token_from_uploads(uploads), frames)
+    parse_frames = [{"index": upload["index"], "object_key": upload["object_key"]} for upload in uploads]
 
     parsed = request_json(
         session,
         "POST",
         f"/v1/sequences/{task_id}/parse",
-        json={"frame_count": len(frames), "frames": parse_frames},
+        json={"frames": parse_frames},
     )
     sequences = parsed.get("sequences") or []
     if not sequences:
@@ -1602,8 +1346,94 @@ Response:
 Minimal Python demo:
 
 ```bash
-export GAIT_REGISTERED_API_KEY='gak_your_api_key'
-python3 examples/registered/python/object_search_api_demo.py examples/sample_sequences/ID_0001/001811.jpg 'person'
+# Edit API_KEY, IMAGE_PATH, and PROMPT in the demo file first.
+python3 examples/registered/python/object_search_api_demo.py
+```
+
+### POST /v1/public/object-search
+
+Authentication is not required.
+
+Compatibility alias:
+
+- `POST /v1/public/locate-anything`
+
+Purpose:
+
+- Provides anonymous x402 paid Object Search.
+- A request without a payment signature returns HTTP `402` with `payment_context.challenge`.
+- The client signs the x402 challenge and retries the same request with `PAYMENT-SIGNATURE`.
+- Successful paid calls are recorded as public `locate_anything` usage.
+
+Request:
+
+```json
+{
+  "image_base64": "<base64 encoded image>",
+  "prompt": "person",
+  "idempotency_key": "optional-client-key"
+}
+```
+
+Minimal Python x402 demo:
+
+```bash
+# Edit EVM_PRIVATE_KEY, IMAGE_PATH, and PROMPT in the demo file first.
+python3 examples/anonymous/python/anonymous_object_search_x402_demo.py
+```
+
+### POST /v1/public/features/face
+
+Authentication is not required.
+
+Purpose:
+
+- Provides anonymous x402 paid face feature extraction.
+- A request without a payment signature returns HTTP `402` with `payment_context.challenge`.
+- The client signs the x402 challenge and retries the same request with `PAYMENT-SIGNATURE`.
+- The input should be one detected and aligned face image.
+
+Request:
+
+```json
+{
+  "image_base64": "<base64 encoded aligned face image>",
+  "idempotency_key": "optional-client-key"
+}
+```
+
+Minimal Python x402 demo:
+
+```bash
+# Edit EVM_PRIVATE_KEY and IMAGE_PATH in the demo file first.
+python3 examples/anonymous/python/anonymous_face_x402_demo.py
+```
+
+### POST /v1/public/features/reid
+
+Authentication is not required.
+
+Purpose:
+
+- Provides anonymous x402 paid ReID feature extraction.
+- A request without a payment signature returns HTTP `402` with `payment_context.challenge`.
+- The client signs the x402 challenge and retries the same request with `PAYMENT-SIGNATURE`.
+- The input should be one cropped person image.
+
+Request:
+
+```json
+{
+  "image_base64": "<base64 encoded person image>",
+  "idempotency_key": "optional-client-key"
+}
+```
+
+Minimal Python x402 demo:
+
+```bash
+# Edit EVM_PRIVATE_KEY and IMAGE_PATH in the demo file first.
+python3 examples/anonymous/python/anonymous_reid_x402_demo.py
 ```
 
 ### POST /v1/public/object-search/trial
@@ -1673,6 +1503,23 @@ Response:
 }
 ```
 
+### POST /v1/public/sequences/{task_id}/uploads/batch
+
+Headers:
+
+- `X-Task-Token: <task_token>`
+
+Upload multiple sequence frames in one `multipart/form-data` request. The total
+batch request body must not exceed 32 MB.
+
+Fields:
+
+- `upload_token`: token parsed from `uploads[].upload_url`
+- `frames`: repeated file parts, in sequence order
+
+Frame indexes are assigned by multipart order. The first `frames` part is index
+0, the second is index 1, and so on. File names are ignored by the API.
+
 ### POST /v1/public/sequences/{task_id}/parse
 
 Headers:
@@ -1683,7 +1530,6 @@ Request:
 
 ```json
 {
-  "frame_count": 4,
   "frames": [
     {
       "index": 0,
@@ -1697,7 +1543,7 @@ Request:
 }
 ```
 
-`frames[].object_key` must be copied from the `POST /v1/public/sequences` create response after uploading each frame to `uploads[].upload_url`.
+`frames[].object_key` must be copied from the `POST /v1/public/sequences` create response after uploading the sequence images with `/uploads/batch`.
 
 Unpaid request may return HTTP `402`.
 
@@ -1746,7 +1592,6 @@ Request:
 
 ```json
 {
-  "frame_count": 4,
   "frames": [
     {
       "index": 0,
@@ -1760,7 +1605,7 @@ Request:
 }
 ```
 
-`frames[].object_key` must be copied from the `POST /v1/public/sequences` create response after uploading each frame to `uploads[].upload_url`.
+`frames[].object_key` must be copied from the `POST /v1/public/sequences` create response after uploading the sequence images with `/uploads/batch`.
 
 Unpaid request may return HTTP `402` with `payment_context.phase = "gait_pose_once"`.
 
@@ -1823,7 +1668,7 @@ Behavior:
 
 Anonymous x402 client flow:
 
-1. Create a public task and upload input frames or video.
+1. Create a public task and upload input frames.
 2. Call the paid public endpoint once without payment, for example `POST /v1/public/sequences/{task_id}/parse`.
 3. The server returns HTTP `402` with `payment_context.challenge` and header `PAYMENT-REQUIRED`.
 4. Sign the challenge with an x402-compatible client/wallet.

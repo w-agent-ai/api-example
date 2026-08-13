@@ -30,20 +30,20 @@ Public-task payment-required responses may also include `payment_context`:
 {
   "error": {
     "code": "payment_required",
-    "message": "phase1 payment required",
+    "message": "payment required",
     "request_id": "req_xxx",
     "retryable": true,
     "details": {}
   },
   "payment_context": {
     "provider": "mock",
-    "phase": "video_phase1",
+    "phase": "sequence_once",
     "order_id": "ord_xxx",
     "amount": "12.34",
     "currency": "USD",
     "expires_at": "2026-05-06T12:00:00Z",
     "pricing_basis": {
-      "frame_count": 1234
+      "sequence_count": 1
     },
     "challenge": {
       "mode": "mock",
@@ -227,39 +227,6 @@ If provider is `x402`, the same response also carries header `PAYMENT-REQUIRED`.
 
 ## Endpoint-Specific Notes
 
-### POST /v1/videos/{task_id}/complete
-
-Possible business errors:
-
-- `unauthorized`
-- `access_denied`
-- `upload_not_completed`
-- `task_state_conflict`
-- `wallet_insufficient_balance`
-
-### PUT /v1/video-uploads/{task_id}
-
-Possible business errors:
-
-- `access_denied`
-- `invalid_argument`
-- `wallet_insufficient_balance`
-- `task_not_found`
-- `task_deleted`
-- `upload_expired`
-- `task_state_conflict`
-
-### GET /v1/videos/{task_id}/result
-
-Possible business errors:
-
-- `unauthorized`
-- `access_denied`
-- `result_not_ready`
-- `wallet_insufficient_balance`
-- `task_expired`
-- `task_deleted`
-
 ### GET /v1/sequences/{task_id}/result
 
 Possible business errors:
@@ -287,16 +254,6 @@ Possible business errors:
 - `deposit_already_settled`
 - `user_not_found`
 - `invalid_argument`
-
-### DELETE /v1/videos/{task_id}
-
-Possible business errors:
-
-- `unauthorized`
-- `task_not_found`
-- `task_deleted`
-- `task_state_conflict`
-- `access_denied`
 
 ### DELETE /v1/sequences/{task_id}
 

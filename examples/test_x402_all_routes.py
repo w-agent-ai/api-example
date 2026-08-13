@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from eth_account import Account
@@ -196,7 +195,7 @@ def test_route(
         raise RuntimeError(f"upload count mismatch: {len(uploads)} != {len(frames)}")
 
     print(f"task_id={task_id}")
-    upload_frames(session, uploads, frames)
+    upload_frames(session, task_id, task_token, uploads, frames)
 
     parse_url = f"{BASE_URL}/v1/public/sequences/{task_id}/parse"
     parse_payload = {
@@ -317,10 +316,10 @@ def test_route(
 
 
 def load_private_key() -> str:
-    private_key = EVM_PRIVATE_KEY.strip() or os.environ.get("GAIT_TEST_WALLET_PRIVATE_KEY", "").strip()
+    private_key = EVM_PRIVATE_KEY.strip()
     if not private_key:
         print(
-            "fill EVM_PRIVATE_KEY in examples/test_x402_all_routes.py or export GAIT_TEST_WALLET_PRIVATE_KEY",
+            "fill EVM_PRIVATE_KEY in examples/test_x402_all_routes.py",
             file=sys.stderr,
         )
         raise SystemExit(2)
@@ -364,17 +363,35 @@ def create_public_task(session: requests.Session, frame_count: int) -> dict[str,
     return response.json()
 
 
-def upload_frames(session: requests.Session, uploads: list[dict[str, Any]], frames: list[Path]) -> None:
-    for upload, frame_path in zip(uploads, frames):
-        upload_url = urljoin(BASE_URL + "/", str(upload["upload_url"]).lstrip("/"))
-        response = session.put(
-            upload_url,
-            headers={"Content-Type": detect_content_type(frame_path)},
-            data=frame_path.read_bytes(),
+def upload_frames(session: requests.Session, task_id: str, task_token: str, uploads: list[dict[str, Any]], frames: list[Path]) -> None:
+    files = []
+    handles = []
+    try:
+        for index, frame in enumerate(frames):
+            handle = frame.open("rb")
+            handles.append(handle)
+            files.append(("frames", (f"{index:06d}{frame.suffix.lower()}", handle, detect_content_type(frame))))
+        response = session.post(
+            f"{BASE_URL}/v1/public/sequences/{task_id}/uploads/batch",
+            headers={"X-Task-Token": task_token},
+            data={"upload_token": upload_token_from_uploads(uploads)},
+            files=files,
             timeout=TIMEOUT,
         )
         response.raise_for_status()
-    print(f"uploaded_count={len(frames)}")
+    finally:
+        for handle in handles:
+            handle.close()
+    print(f"uploaded_batch={len(frames)}")
+
+
+def upload_token_from_uploads(uploads: list[dict[str, Any]]) -> str:
+    if not uploads:
+        raise RuntimeError("create sequence response has no upload slots")
+    token = parse_qs(urlparse(str(uploads[0]["upload_url"])).query).get("token", [""])[0]
+    if not token:
+        raise RuntimeError("upload_url has no token")
+    return token
 
 
 def ensure_permit2_allowance(private_key: str, route: dict[str, str], needed_amount: str) -> str:

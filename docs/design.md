@@ -23,26 +23,22 @@
 
 ## 1. 项目目标
 
-本项目基于 `algorithms/sdk` 对外提供一个可公开访问的步态解析服务，支持两类核心能力：
+本项目基于 `algorithms/sdk` 对外提供一个可公开访问的步态解析服务，支持以下核心能力：
 
-- 解析视频
 - 解析步态序列
 - Gait Pose 单独解析
 
-其中：
-
-- 视频解析是异步任务
-- 步态序列解析是同步任务
+其中步态序列解析和 Gait Pose 均以已跟踪完成的人体序列作为输入。
 
 服务同时支持两种使用方式：
 
 - 注册用户模式：邮箱注册、密码登录、预充值、生成 API Key，后续按调用扣费
 - 匿名 Agent 模式：不注册账号，通过匿名任务创建与单次支付完成调用
 
-接口边界上只保留两类调用路径：
+接口边界上只保留两类公开调用路径：
 
-- 注册用户只能走私有接口 `/v1/videos`、`/v1/sequences`
-- 匿名用户或 Agent 只能走公开接口 `/v1/public/videos`、`/v1/public/sequences`
+- 注册用户走私有接口 `/v1/sequences`
+- 匿名用户或 Agent 走公开接口 `/v1/public/sequences`
 
 当前已经不再支持“匿名但非 public”的私有任务模式。
 
@@ -55,33 +51,7 @@
 
 ## 2. 功能范围
 
-### 2.1 视频解析
-
-用户上传完整视频后，系统解析并产出多个序列。每个序列表示一个人从出现到消失的完整过程，包含：
-
-- 步态特征
-- 人脸特征
-- ReID 特征
-- ReID 结构化属性
-- 序列在视频中的帧信息
-- 每帧的目标框信息
-- 对外可访问的步态图
-- 对外可访问的人脸图
-
-视频任务流程：
-
-1. 创建任务
-2. 获取上传地址
-3. 上传视频
-4. 生成一期计费
-5. 支付一期费用
-6. worker 调用 SDK 解析
-7. 生成二期计费
-8. 支付二期费用
-9. 获取完整结果
-10. 到期自动删除资产与记录
-
-### 2.2 步态序列解析
+### 2.1 步态序列解析
 
 用户上传一个已经跟踪完成的单序列图片集合，返回：
 
@@ -95,14 +65,14 @@
 序列任务流程：
 
 1. 创建任务
-2. 获取每帧上传地址
-3. 上传帧图片
+2. 获取每帧 `object_key` 和可解析 `upload_token` 的 `upload_url`
+3. 通过 `/uploads/batch` 一次性上传该序列的全部帧图片
 4. 发起解析
 5. 支付费用
 6. 同步返回结果
 7. 到期自动删除资产与记录
 
-### 2.3 Gait Pose 单独解析
+### 2.2 Gait Pose 单独解析
 
 Gait Pose 是从完整步态序列解析里拆出来的独立能力，底层调用 SDK 的 `agentGaitGetSeqGaitPose` 接口。
 
@@ -113,7 +83,18 @@ Gait Pose 是从完整步态序列解析里拆出来的独立能力，底层调�
 - 3D 人体关节点
 - 情绪输出字段
 
-Gait Pose 不返回 gait、face、ReID 特征，也不复用完整步态识别结果。它是单独接口、单独扣费，计费为“人体关节点每个序列费用 + 可选序列帧费用”。当后台 `sequence_per_k_frames` 非 0 时，人体关节点、直接步态序列解析、视频结果第二阶段都会按序列帧数向上取整到 100 帧后叠加帧费；为 0 时不收这部分费用。
+Gait Pose 不返回 gait、face、ReID 特征，也不复用完整步态识别结果。它是单独接口、单独扣费，计费为“人体关节点每个序列费用 + 可选序列帧费用”。当后台 `sequence_per_k_frames` 非 0 时，人体关节点和步态序列解析会按序列帧数向上取整到 100 帧后叠加帧费；为 0 时不收这部分费用。
+
+### 2.3 单图特征接口
+
+系统还提供两个同步单图特征接口：
+
+- 人脸识别：`POST /v1/features/face`，输入一张已经矫正的人脸图片，worker 调 SDK `GetFaceFeature` 返回 512 维人脸特征。
+- ReID识别：`POST /v1/features/reid`，输入一张人体图片，worker 调 SDK `GetReidFeature` 返回 512 维 ReID 特征。
+
+这两个接口不创建 sequence/video 任务，不把 512 维特征写入任务表；API 进程负责鉴权、计费、钱包扣费和使用流水，worker 只负责 SDK 计算。计费按独立的每千帧配置项计算，单张图片按 1 帧向上取整到 0.01 元。
+
+官网首页的人脸识别/ReID识别体验上传图片 1、图片 2，在浏览器侧生成候选框并裁剪选中的候选区域，再调用对应单图特征接口计算点积相似度。人脸识别首页使用于诗琪 `libfacedetection` 编译出的 `facedet_wasm.js/.wasm` 做人脸框和 5 点关键点检测，并用双眼关键点在浏览器 Canvas 中矫正成 112x112 人脸图；ReID 首页使用现有 `persondet` 人体检测代码生成人体候选框。人脸检测在浏览器 Worker 中执行，输入图最长边按 1280 缩放；ReID 人体检测也优先在 Worker 中执行，输入图最长边按 640 缩放。服务端 API 只接收已经准备好的单张人脸或人体图片，不在服务端做检测、矫正或裁剪。
 
 ## 3. 系统架构
 
@@ -213,15 +194,10 @@ worker 进程负责：
 
 - 初始化 SDK
 - 提供序列 SDK 接口
-- 轮询视频任务
-- 推进视频任务到 `processing`
-- 获取视频解析进度
-- 获取视频解析结果
-- 清理视频 SDK 内部状态
 
 worker 进程不负责钱包和账户资金状态：不装配 `accounts.Service`，不调用钱包扣款、充值结算、后台补款/扣款或套餐续费入口；这些事务统一由 API 进程执行。
 
-注册用户 gait 特征旋转也属于用户隔离逻辑，由 API 进程负责。worker 只产出和保存 SDK 原始特征，不读取用户 seed、不缓存用户旋转矩阵；完整结果 JSON 存对象文件，任务表只保存 `result_object_key` 和结构化小字段。API 在返回注册用户序列/视频结果前按用户稳定 seed 生成或复用 512x512 旋转矩阵并执行旋转。
+注册用户 gait 特征旋转也属于用户隔离逻辑，由 API 进程负责。worker 只产出和保存 SDK 原始特征，不读取用户 seed、不缓存用户旋转矩阵；完整结果 JSON 存对象文件，任务表只保存 `result_object_key` 和结构化小字段。API 在返回注册用户序列结果前按用户稳定 seed 生成或复用 512x512 旋转矩阵并执行旋转。
 
 ## 5. 对外接口设计
 
@@ -233,15 +209,9 @@ worker 进程不负责钱包和账户资金状态：不装配 `accounts.Service`
 
 匿名或 Agent 可用：
 
-- `POST /v1/public/videos`
-- `PUT /v1/video-uploads/{task_id}`
-- `POST /v1/public/videos/{task_id}/settle-phase1`
-- `GET /v1/public/videos/{task_id}`
-- `GET /v1/public/videos/{task_id}/result`
-- `POST /v1/public/videos/{task_id}/settle-phase2`
-
 - `POST /v1/public/sequences`
-- `PUT /v1/uploads/{task_id}/{index}`
+- `POST /v1/public/sequences/{task_id}/uploads/batch`
+- `POST /v1/sequences/{task_id}/uploads/batch`
 - `POST /v1/public/sequences/{task_id}/parse`
 - `POST /v1/public/sequences/{task_id}/gait-pose`
 - `POST /v1/public/sequences/{task_id}/settle`
@@ -252,13 +222,8 @@ worker 进程不负责钱包和账户资金状态：不装配 `accounts.Service`
 
 门户与 API Key 模式：
 
-注册用户任务接口还包括：
+注册用户任务接口包括：
 
-- `POST /v1/videos`
-- `POST /v1/videos/{task_id}/complete`
-- `GET /v1/videos/{task_id}`
-- `GET /v1/videos/{task_id}/result`
-- `DELETE /v1/videos/{task_id}`
 - `POST /v1/sequences`
 - `POST /v1/sequences/{task_id}/parse`
 - `POST /v1/sequences/{task_id}/gait-pose`
@@ -341,7 +306,7 @@ API Key 特性：
 
 说明：
 
-- 文件上传本身依赖的是 `upload_url` 中的 `token=...`
+- 序列图片批量上传依赖从 `upload_url` 中解析出的 `token=...`
 - `task_token` 只用于 public 任务的状态、结果、删除、结算等接口
 
 ### 6.4 管理员登录
@@ -447,11 +412,7 @@ API Key 特性：
 <data_dir>/sequence_samples/<YYYY-MM-DD>/anonymous/<anonymous_owner_id>/<task_id>/
 ```
 
-步态序列解析接口会保存用户上传的人形小图帧；视频解析接口会在 SDK 返回 `gaitImages` 时按视频任务和序列分别保存扣图帧：
-
-```text
-<data_dir>/sequence_samples/<YYYY-MM-DD>/user/<user_id>/<video_task_id>/<sequence_id>/frames/*.jpg
-```
+步态序列解析接口会保存用户上传的人形小图帧。
 
 每个归档目录包含 `frames/`、`metadata.json`、`result.json`。该目录由管理人员自行拷贝和删除，业务清理任务不会删除它。
 `<YYYY-MM-DD>` 使用任务创建时间所在服务器本地日期；管理人员可以直接按日期目录拷贝或删除一天的数据。
@@ -533,7 +494,14 @@ std::string getAttrString(std::vector<int> attr);
 - 注册用户输出为空时也按 1 个序列计费
 - 匿名 x402 用户按输入序列个数计费；当前 Sequence API 一次输入 1 个序列，所以匿名调用按 1 个序列计费，不按拆分后的输出数量补扣费
 
-### 9.3 注册用户扣费
+### 9.3 单图特征计费
+
+- 人脸识别使用 `face_per_k_frames`，默认 100 分/千帧，即 1 元/千帧；单张图片按 1 帧计费并向上取整到 1 分。
+- ReID识别使用 `reid_per_k_frames`，默认 100 分/千帧，即 1 元/千帧；单张图片按 1 帧计费并向上取整到 1 分。
+- 注册用户调用成功后写钱包扣费流水和 usage ledger，reason code 分别为 `face_feature_once`、`reid_feature_once`。
+- 免注册试用路由为 `POST /v1/public/features/trial/face` 和 `POST /v1/public/features/trial/reid`，分别消耗 `face_feature`、`reid_feature` 独立试用额度桶，不扣注册用户钱包。
+
+### 9.4 注册用户扣费
 
 注册用户采用钱包预充值模式：
 
@@ -684,14 +652,6 @@ std::string getAttrString(std::vector<int> attr);
 | Base Mainnet | EURC | EIP-3009，按后台 `eurc_usd_exchange_rate` 从 USD 金额换算 |
 
 ### 9.7 当前设计判断
-
-对于匿名视频解析，当前方案采用：
-
-- 创建任务
-- 上传后生成账单
-- 匿名支付后再处理
-
-这是当前风险最低、状态最清晰的方案。
 
 ## 10. 支付与充值设计
 
@@ -866,7 +826,9 @@ SQL 模式下当前保留：
 - 计费与清理设置
 - 审计日志
 
-用户管理列表展示用户 ID、邮箱、手机号、充值余额、套餐余额、累计充值、最近消费、API Key 数量、最近 IP、活跃天数和注册时间。搜索框支持按邮箱、手机号或用户 ID 过滤；用户详情页和导出 CSV 也包含手机号和用户 ID，便于排查短信注册用户和按账户定位旋转矩阵、钱包流水、使用记录。用户、钱包、API Key 和订阅作为热数据加载到内存；管理列表使用后端全量搜索和服务端分页，每次只返回当前页，避免浏览器解析几十万用户的 JSON。
+用户管理列表展示用户 ID、邮箱、手机号、充值余额、套餐余额、累计充值、累计补款、累计扣款、最近消费、API Key 数量、活跃天数和注册时间。累计补款统计后台补款流水，累计扣款只统计后台扣款流水，不等同于用户正常 API 消费。搜索框支持按邮箱、手机号或用户 ID 过滤；用户详情页和导出 CSV 也包含手机号和用户 ID，便于排查短信注册用户和按账户定位旋转矩阵、钱包流水、使用记录。用户详情中的账户流水查询支持指定开始日期和结束日期，按该时间范围加载全部账户流水，并可导出 CSV 明细；账户变动记录展示扣费方式，并按套餐和充值余额分别展示余额。用户、钱包、API Key 和订阅作为热数据加载到内存；管理列表使用后端全量搜索和服务端分页，每次只返回当前页，避免浏览器解析几十万用户的 JSON。
+
+网页客户端的人体检测优先使用官方 `onnxruntime-web` WASM 运行 `gait_detect.onnx`，模型固定输入为 `1x3x352x640`，浏览器端会把检测图缩放到该尺寸并把输出框映射回原图/视频坐标。Python 本地视频示例使用同一个 ONNX 模型和 `onnxruntime` CPU 推理；C++ 本地视频示例使用包内 Linux x64 CPU 版 ONNX Runtime 和同一个 ONNX 模型。人体关节点和步态识别的视频转序列流程共用该检测器。ONNX 后端不可用时，浏览器依次回退到原 C++ detector 编译的 WASM 和 JavaScript 权重 detector。`/portal/browser-assets` 提供 ORT JS、ORT WASM、ONNX 模型和旧 detector 资源；资源下载包也包含这些文件，保证示例包自洽。
 
 财务管理页的主接口只返回收入、资金流入、支出等 summary。充值余额流水、套餐流水、消费记录、匿名收入和充值记录分别走独立分页接口；前端翻页和筛选只刷新对应表格，避免一次性把多类流水样本推给浏览器。
 
@@ -945,9 +907,11 @@ SQL 模式下当前保留：
 
 当前用户门户已实现：
 
-- 统一顶部导航：首页、产品&API、X402 支持、计费&充值、API Key 管理、Demo 下载
-- 未登录首页试玩：以单行控件选择能力、文件、文字需求并发起免注册试用。图搜万物的文字需求提示示例统一为“猫、公交车、穿红衣服的人”；选择文件后在控件内显示文件名，单图搜万物只显示文件名，多文件能力显示首个文件名和总数。
-- 产品说明页：身份识别、人体 2D/3D 关节点、图搜万物、API 接入、Agent 接入、计费方式和 Demo 下载
+- 统一顶部导航：首页、产品&API、X402 支持、计费&充值、API Key 管理、资源下载
+- 未登录首页试玩：按首页顺序提供图搜万物、人体2D/3D关节点、步态识别、人脸识别、ReID识别。图搜万物上传图片并输入目标文本后调用试用接口；人体关节点和步态识别在新页面打开浏览器客户端，支持示例视频和用户本地视频；人脸识别和 ReID识别上传两张图片，在浏览器侧检测候选目标，点击画面候选框或候选卡片选择目标后比对相似度。
+- 试用计费提示：每个算法有独立免注册试用额度；试用额度不足时统一提示“当前算法免注册试用额度已用完，请「登录」后使用。”；批量调用提示跳转产品&API页并高亮对应能力。
+- 首页示例资源：图搜万物示例图片、人体关节点/步态示例视频、人脸/ReID示例图片均从 `/portal/examples/` 读取；人脸/ReID示例图片点击后会自动加载为图片1/图片2并运行浏览器检测。
+- 产品说明页：身份识别、人体 2D/3D 关节点、图搜万物、API 接入、Agent 接入、计费方式和资源下载
 - 邮箱注册
 - 邮箱密码登录
 - 余额展示
@@ -956,7 +920,7 @@ SQL 模式下当前保留：
 - API Key 管理
 - 消费记录
 
-API Key 管理页不在列表中展示累计金额；每个 API Key 通过“查看”打开使用记录弹窗。弹窗展示 UTC 日期口径的日汇总，支持日期范围和类型筛选，筛选请求由后端按 `api_key_id`、UTC 日期范围和类型查询 `daily_api_key_usage_summary`，底部展示当前筛选条件下的累计金额。为避免长期历史数据导致单次查询过大，日汇总查询和导出单次时间跨度限制为不超过半年；导出必须提供开始日期和结束日期。
+API Key 管理页不在列表中展示累计金额；每个 API Key 通过“查看”打开使用记录弹窗。弹窗展示 UTC 日期口径的日汇总，支持日期范围和类型筛选，筛选请求由后端按 `api_key_id`、UTC 日期范围和类型查询 `daily_api_key_usage_summary`，底部展示当前筛选条件下的累计金额。为避免长期历史数据导致单次查询过大，日汇总查询和导出单次时间跨度限制为不超过半年；导出必须提供开始日期和结束日期。导出文件不导出汇总行，而是按当前 API Key、日期范围和类型从 `account_wallet_ledger` 导出明细流水，按时间由近到远排列，便于核对每一次实际扣费。
 
 消费记录不再依赖任务文件本身。系统启用数据库后，所有 API 调用扣费都会写入 `usage_records`：
 
@@ -1029,7 +993,6 @@ API Key 管理页不在列表中展示累计金额；每个 API Key 通过“查
 
 当前已经完成的主线能力：
 
-- 视频解析接口
 - 步态序列解析接口
 - 用户注册/登录/API Key
 - 钱包与充值

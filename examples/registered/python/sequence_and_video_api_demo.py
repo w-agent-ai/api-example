@@ -6,8 +6,8 @@ This script uses a registered API key, recursively processes all leaf sequence
 directories under SEQ_ROOT and all video files under VIDEO_ROOT, then writes one
 JSON result per item plus summary and similarity reports under RESULT_DIR.
 
-The API result can include optional emotions fields. pose_2ds and pose_3ds
-are returned only by the standalone gait-pose API.
+The API result can include optional emotions fields. Human 2D/3D keypoints are
+handled by gait_pose_api_demo.py and are intentionally not called here.
 """
 
 from __future__ import annotations
@@ -20,32 +20,27 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 
 
-ROOT = Path(__file__).resolve().parents[3]
-
-# Registered-user demo configuration.
-#
+# Registered-user demo configuration. Change these values before running.
 # A registered user pays from their account balance. The client only needs to
-# send the API Key in the Authorization header; no x402 wallet signing is used
-# in this registered-user flow.
-USER_EMAIL = os.environ.get("GAIT_REGISTERED_EMAIL", "user@example.com")
-API_KEY = ""
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "http://116.198.210.0:3005")
+# send the API Key in the Authorization header; no x402 wallet signing is used.
+API_KEY = "gak_your_api_key"
+BASE_URL = "https://www.w-agent.cn/api"
 
 # Sequence input:
 #   examples/seqs may contain nested folders.
 #   Each leaf folder that directly contains images is treated as one sequence.
 # Video input:
 #   examples/video is scanned recursively for common video file extensions.
-SEQ_ROOT = ROOT / "examples" / "seqs"
-VIDEO_ROOT = ROOT / "examples" / "video"
+SEQ_ROOT = Path("./seqs")
+VIDEO_ROOT = Path("./video")
 
 # All raw API responses and derived similarity reports are written here.
-RESULT_DIR = ROOT / "tmp" / "registered_batch_results"
+RESULT_DIR = Path("./result")
 TIMEOUT = 1800
 POLL_INTERVAL = 2.0
 
@@ -65,7 +60,6 @@ def main() -> int:
     summary: dict[str, Any] = {
         "started_at": iso_now(),
         "base_url": BASE_URL,
-        "user_email": USER_EMAIL,
         "seq_root": str(SEQ_ROOT),
         "video_root": str(VIDEO_ROOT),
         "result_dir": str(RESULT_DIR),
@@ -77,7 +71,6 @@ def main() -> int:
     write_json(RESULT_DIR / "summary.json", summary)
 
     print(f"base_url={BASE_URL}")
-    print(f"user_email={USER_EMAIL}")
     print(f"seq_root={SEQ_ROOT} leaf_sequences={len(seq_dirs)}")
     print(f"video_root={VIDEO_ROOT} videos={len(videos)}")
     print(f"result_dir={RESULT_DIR}")
@@ -126,7 +119,7 @@ def main() -> int:
 def run_and_save(kind: str, source: Path, fn) -> dict[str, Any]:
     """Run one API operation and persist its full result or error as JSON."""
     started_at = iso_now()
-    safe_name = safe_filename(str(source.relative_to(ROOT) if source.is_relative_to(ROOT) else source))
+    safe_name = safe_filename(str(source))
     out_path = RESULT_DIR / kind / f"{safe_name}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -165,10 +158,9 @@ def run_registered_sequence(session: requests.Session, headers: dict[str, str], 
 
     API flow:
       1. POST /v1/sequences with frame_count.
-      2. PUT each frame to the upload_url returned by step 1.
-      3. POST /v1/sequences/{task_id}/gait-pose for standalone pose billing.
-      4. POST /v1/sequences/{task_id}/parse with index/object_key pairs.
-      5. GET /v1/sequences/{task_id}/result to read the stored result.
+      2. POST all frames once to /v1/sequences/{task_id}/uploads/batch as multipart/form-data.
+      3. POST /v1/sequences/{task_id}/parse with index/object_key pairs.
+      4. GET /v1/sequences/{task_id}/result to read the stored result.
     """
     frames = collect_frames(seq_dir)
     # The server allocates one upload slot per frame. The object_key from each
@@ -179,23 +171,8 @@ def run_registered_sequence(session: requests.Session, headers: dict[str, str], 
     if len(uploads) != len(frames):
         raise RuntimeError(f"upload count mismatch: api={len(uploads)} local={len(frames)}")
 
-    parse_frames: list[dict[str, Any]] = []
-    for index, frame in enumerate(frames):
-        upload = uploads[index]
-        upload_binary(session, upload["upload_url"], frame)
-        # Use the server-provided index and object_key rather than local
-        # filenames. This keeps parsing independent from client file paths.
-        parse_frames.append({"index": upload["index"], "object_key": upload["object_key"]})
-
-    # Gait Pose is a separate API and separate billable operation. It returns
-    # pose_2ds / pose_3ds without full gait, face or ReID feature extraction.
-    gait_pose = request_json(
-        session,
-        "POST",
-        f"/v1/sequences/{task_id}/gait-pose",
-        headers=headers,
-        json_payload={"frames": parse_frames},
-    )
+    upload_frames_batch(session, headers, task_id, upload_token_from_uploads(uploads), frames)
+    parse_frames = [{"index": upload["index"], "object_key": upload["object_key"]} for upload in uploads]
 
     # Registered gait sequence parsing returns synchronously after SDK processing and
     # account-balance billing are complete. One uploaded track can produce
@@ -212,7 +189,6 @@ def run_registered_sequence(session: requests.Session, headers: dict[str, str], 
         "task_id": task_id,
         "sequence_dir": str(seq_dir),
         "frame_count": len(frames),
-        "gait_pose": gait_pose,
         "parsed": parsed,
         "sequence_count": parsed.get("sequence_count") or len(parsed.get("sequences") or []),
         "result": result,
@@ -303,6 +279,33 @@ def upload_binary(session: requests.Session, upload_url: str, path: Path, conten
     resp = session.put(url, data=path.read_bytes(), headers={"Content-Type": mime, "Accept": "application/json"}, timeout=TIMEOUT)
     if resp.status_code >= 400:
         raise_http(resp)
+
+
+def upload_frames_batch(session: requests.Session, headers: dict[str, str], task_id: str, upload_token: str, frames: list[Path]) -> None:
+    files = []
+    handles = []
+    try:
+        for index, frame in enumerate(frames):
+            handle = frame.open("rb")
+            handles.append(handle)
+            mime = mimetypes.guess_type(frame.name)[0] or "application/octet-stream"
+            files.append(("frames", (f"{index:06d}{frame.suffix.lower()}", handle, mime)))
+        url = urljoin(BASE_URL.rstrip("/") + "/", f"v1/sequences/{task_id}/uploads/batch")
+        resp = session.post(url, headers=headers, data={"upload_token": upload_token}, files=files, timeout=TIMEOUT)
+        if resp.status_code >= 400:
+            raise_http(resp)
+    finally:
+        for handle in handles:
+            handle.close()
+
+
+def upload_token_from_uploads(uploads: list[dict[str, Any]]) -> str:
+    if not uploads:
+        raise RuntimeError("create sequence response has no upload slots")
+    token = parse_qs(urlparse(str(uploads[0]["upload_url"])).query).get("token", [""])[0]
+    if not token:
+        raise RuntimeError("upload_url has no token")
+    return token
 
 
 def request_json(session: requests.Session, method: str, path: str, headers: dict[str, str] | None = None, json_payload: Any | None = None) -> dict[str, Any]:
@@ -529,10 +532,10 @@ def read_json(path: Path) -> Any:
 
 
 def load_api_key() -> str:
-	api_key = os.environ.get("GAIT_REGISTERED_API_KEY", "").strip() or API_KEY.strip()
-	if not api_key:
-		raise RuntimeError("export GAIT_REGISTERED_API_KEY before running this demo")
-	return api_key
+    api_key = API_KEY.strip()
+    if not api_key or api_key == "gak_your_api_key":
+        raise RuntimeError("edit API_KEY in sequence_and_video_api_demo.py before running this demo")
+    return api_key
 
 
 def safe_filename(value: str) -> str:

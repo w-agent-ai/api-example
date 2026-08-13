@@ -26,14 +26,14 @@ pip install requests eth-account 'x402[evm]'
 2. 准备一个序列图片目录，例如：
 
 ```bash
-mkdir -p ./seq
-cp /path/to/your/images/* ./seq/
+mkdir -p ./images
+cp /path/to/your/images/* ./images/
 ```
 
 ## 运行
 
 ```bash
-python3 examples/anonymous/python/anonymous_sequence_x402_demo.py
+python3 anonymous_sequence_x402_demo.py
 ```
 
 ## 预期

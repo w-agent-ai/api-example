@@ -35,7 +35,7 @@ source algorithms/env.sh
   --poll 2s
 ```
 
-目录模式会直接从源视频抽帧生成关节点示例序列，不走 gait 视频解析，避免健身、站姿等静止动作被“有效步态”过滤掉。`--max-pose-frames 0` 表示全帧抽取，不跳帧；`--fps 30` 表示合成的 2D/3D 关节点视频按 30fps 写出。它会把每个视频写入 `pose-demo/videos/video-xxx/`，并在
+目录模式会直接从源视频抽帧生成关节点示例序列，避免健身、站姿等静止动作被“有效步态”过滤掉。`--max-pose-frames 0` 表示全帧抽取，不跳帧；`--fps 30` 表示合成的 2D/3D 关节点视频按 30fps 写出。它会把每个视频写入 `pose-demo/videos/video-xxx/`，并在
 `pose-demo/manifest.json` 中写入 `videos` 列表。首页人体关节点 demo 会在左侧提示文字下展示示例视频；右侧按“序列抓拍 -> 2D/3D 结果”两列展示。
 
 批量生成首页步态识别多示例视频：
@@ -77,7 +77,7 @@ source algorithms/env.sh
   --poll 2s
 ```
 
-追加模式会读取已有 `gait-demo/manifest.json`，把新视频解析出的序列编号接在
+追加模式会读取已有 `gait-demo/manifest.json`，把新素材生成的序列编号接在
 `video2-sequences` 后面，并补齐现有 video1 序列与新增 video2 序列的相似度。
 `--max-gait-sequences 0` 表示追加全部有效序列；设置为正数时，只追加每个视频
 前 N 个有效序列。

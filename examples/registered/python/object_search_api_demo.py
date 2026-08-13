@@ -1,52 +1,53 @@
 #!/usr/bin/env python3
 """
-Minimal registered-user demo for 图搜万物 / Object Search.
+Minimal registered-user demo for Object Search.
 
-Flow:
-1. Read one local image file and base64-encode it.
-2. POST /v1/object-search with Authorization: Bearer <API_KEY>.
-3. Print returned boxes and billing info.
-
-Run:
-  export GAIT_REGISTERED_API_KEY='gak_your_api_key'
-  python3 examples/registered/python/object_search_api_demo.py examples/sample_sequences/ID_0001/001811.jpg 'person'
+Edit API_KEY, IMAGE_PATH, and PROMPT below before running.
 """
 
 from __future__ import annotations
 
 import base64
 import json
-import os
 import sys
 from pathlib import Path
 
 import requests
 
 
-ROOT = Path(__file__).resolve().parents[3]
-BASE_URL = os.environ.get("GAIT_API_BASE_URL", "https://www.w-agent.cn/api")
-API_KEY = os.environ.get("GAIT_REGISTERED_API_KEY", "")
-DEFAULT_IMAGE = ROOT / "examples" / "sample_sequences" / "ID_0001" / "001811.jpg"
-DEFAULT_PROMPT = "person"
+# Fill in your registered W-Agent API Key. It is sent as:
+# Authorization: Bearer <api_key>
+API_KEY = "gak_your_api_key"
+
+# Public API base URL. Keep /api at the end when using the official website.
+BASE_URL = "https://www.w-agent.cn/api"
+
+# Local image and text prompt. The server returns boxes that match the prompt.
+IMAGE_PATH = Path("example.jpg")
+PROMPT = "person"
+
+# Network timeout in seconds for the API call.
 TIMEOUT = 120
 
 
 def main() -> int:
     api_key = API_KEY.strip()
-    if not api_key:
-        print("export GAIT_REGISTERED_API_KEY before running this demo", file=sys.stderr)
+    if not api_key or api_key == "gak_your_api_key":
+        print("edit API_KEY in object_search_api_demo.py before running this demo", file=sys.stderr)
+        return 2
+    if not IMAGE_PATH.is_file():
+        print(f"image file not found: {IMAGE_PATH}", file=sys.stderr)
         return 2
 
-    image_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_IMAGE
-    prompt = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_PROMPT
-    if not image_path.is_file():
-        print(f"image file not found: {image_path}", file=sys.stderr)
-        return 2
-
+    # The HTTP API accepts raw base64 without a data:image/... prefix.
+    # idempotency_key prevents accidental duplicate billing for the same local
+    # image/prompt pair if the client retries after a network interruption.
     payload = {
-        "image_base64": base64.b64encode(image_path.read_bytes()).decode("ascii"),
-        "prompt": prompt,
+        "image_base64": base64.b64encode(IMAGE_PATH.read_bytes()).decode("ascii"),
+        "prompt": PROMPT,
+        "idempotency_key": f"{IMAGE_PATH.resolve()}:{PROMPT}",
     }
+    # Registered users are billed from their account balance through the API Key.
     response = requests.post(
         f"{BASE_URL.rstrip('/')}/v1/object-search",
         headers={
@@ -57,17 +58,20 @@ def main() -> int:
         timeout=TIMEOUT,
     )
     print(f"status={response.status_code}")
-    print(response.text)
+    print(json.dumps(response.json(), ensure_ascii=False, indent=2))
     response.raise_for_status()
-
-    body = response.json()
-    print("---summary---")
-    print(f"image={image_path}")
-    print(f"prompt={prompt}")
-    print(f"box_count={len(body.get('boxes') or [])}")
-    print(f"billing={json.dumps(body.get('billing') or {}, ensure_ascii=False)}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except requests.HTTPError as exc:
+        response = exc.response
+        if response is not None:
+            print(f"http_error={response.status_code}", file=sys.stderr)
+            print(response.text, file=sys.stderr)
+        raise
+    except Exception as exc:  # pragma: no cover - demo script
+        print(f"fatal_error={exc}", file=sys.stderr)
+        raise

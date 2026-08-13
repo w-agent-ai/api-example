@@ -75,7 +75,7 @@ Run Go client with an explicit engine:
 - Process engine runner.
 - W-Agent sequence API client:
   - create sequence task
-  - PUT crop frames to upload URLs
+  - batch-upload crop frames with `/v1/sequences/{task_id}/uploads/batch`
   - call `/v1/sequences/{task_id}/parse`
 - Feature similarity:
   - gait-to-gait

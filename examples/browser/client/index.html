@@ -218,8 +218,17 @@
       min-width: 0;
     }
     .settings-grid { display: grid; gap: 12px; }
-    #poseApiStatus {
+    #gaitSettings {
+      margin-top: -6px;
+    }
+    #poseApiStatus,
+    #poseBatchAPIHint {
       margin-top: -8px;
+    }
+    #poseParseStatus,
+    #poseApiStatus,
+    #poseBatchAPIHint {
+      line-height: 1.35;
     }
     .example-video-section {
       display: grid;
@@ -228,7 +237,7 @@
     }
     .example-video-title {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 800;
     }
     .example-video-list {
@@ -438,7 +447,7 @@
     }
     .hint, .status {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.55;
       font-weight: 560;
     }
@@ -448,6 +457,9 @@
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+    }
+    #noticeModalActions {
+      justify-content: center;
     }
     .display {
       padding: 14px;
@@ -870,7 +882,7 @@
       <a href="https://www.w-agent.cn/portal#agentAccess" target="_blank" rel="noopener" data-i18n="navX402Support">X402 支持</a>
       <a href="https://www.w-agent.cn/portal#walletSection" target="_blank" rel="noopener" data-i18n="billingRecharge">计费&充值</a>
       <a href="https://www.w-agent.cn/portal#apiKeySection" target="_blank" rel="noopener" data-i18n="apiKeyManagement">API Key 管理</a>
-      <a href="https://www.w-agent.cn/portal#docsSection" target="_blank" rel="noopener" data-i18n="navDemos">Demo 下载</a>
+      <a href="https://www.w-agent.cn/portal#docsSection" target="_blank" rel="noopener" data-i18n="navDemos">资源下载</a>
     </nav>
     <div class="site-actions">
       <label class="locale-inline">
@@ -886,15 +898,15 @@
 
   <main class="app">
     <section class="algorithm-tabs" aria-label="algorithm tabs">
-      <button id="tab-locate" type="button" data-mode="locate" data-i18n="modeLocate">图搜万物</button>
-      <button id="tab-pose" type="button" data-mode="pose" data-i18n="modePose">人体2D/3D关节点</button>
+      <button id="tab-locate" type="button" class="hidden" data-mode="locate" data-i18n="modeLocate">图搜万物</button>
+      <button id="tab-pose" type="button" class="active" data-mode="pose" data-i18n="modePose">人体2D/3D关节点</button>
       <button id="tab-gait" type="button" data-mode="gait" data-i18n="modeGait">步态识别</button>
     </section>
 
     <section class="workspace">
       <aside class="settings">
         <div class="settings-head">
-          <h1><span class="sr-only" data-i18n="browserClient">W-Agent 浏览器客户端</span><span id="settingsTitle">图搜万物</span></h1>
+          <h1><span class="sr-only" data-i18n="browserClient">W-Agent 浏览器客户端</span><span id="settingsTitle">人体2D/3D关节点</span></h1>
           <button id="chooseCacheDirInline" type="button" class="secondary" data-i18n="settingsButton">设置</button>
         </div>
         <div class="settings-grid">
@@ -914,7 +926,7 @@
           </label>
         </div>
 
-        <div id="locateSettings" class="settings-grid">
+        <div id="locateSettings" class="settings-grid hidden">
           <label>
             <span data-i18n="image">图片</span>
             <span class="file-picker">
@@ -927,18 +939,20 @@
             <textarea id="locatePrompt" placeholder="请输入你要找的目标：猫、红色公交车、哺乳动物等" data-i18n-placeholder="locatePromptPlaceholder"></textarea>
           </label>
           <button id="locateRun" type="button" data-i18n="startLocate">开始图搜</button>
+          <p id="locateBatchAPIHint" class="status"><span data-i18n="batchCallUseAPI">批量调用，请使用</span><a href="https://www.w-agent.cn/portal?api=object_search#capabilities" target="_blank" rel="noopener" data-i18n="apiLinkText">API</a></p>
         </div>
 
-        <div id="poseSettings" class="settings-grid hidden">
+        <div id="poseSettings" class="settings-grid">
           <label>
             <span class="file-picker">
               <input id="poseVideoInput" type="file" accept="video/*">
               <span id="poseVideoLabel" class="file-button">上传视频</span>
             </span>
           </label>
-          <button id="poseExtract" type="button" data-i18n="poseExtractButton">提取人体关节点</button>
+          <button id="poseExtract" type="button" class="hidden" data-i18n="poseExtractButton">提取人体关节点</button>
           <p id="poseParseStatus" class="status">视频解析：等待上传视频。</p>
           <p id="poseApiStatus" class="status">等待选择序列。</p>
+          <p id="poseBatchAPIHint" class="status"><span data-i18n="batchCallUseAPI">批量调用，请使用</span><a href="https://www.w-agent.cn/portal?api=gait_pose#capabilities" target="_blank" rel="noopener" data-i18n="apiLinkText">API</a></p>
           <div id="poseExampleSection" class="example-video-section hidden">
             <div class="example-video-title" data-i18n="exampleVideos">示例视频</div>
             <div id="poseExampleList" class="example-video-list"></div>
@@ -961,7 +975,7 @@
             </label>
           </div>
           <div class="gait-action-row">
-            <button id="gaitExtract" type="button">运行</button>
+            <button id="gaitExtract" type="button" class="secondary" disabled data-i18n="pause">暂停</button>
             <button id="gaitCompare" type="button" class="secondary" data-i18n="compare">比对</button>
           </div>
         </div>
@@ -974,14 +988,14 @@
       </aside>
 
       <section class="display">
-        <div id="locateView" class="result-layout locate-layout">
+        <div id="locateView" class="result-layout locate-layout hidden">
           <section class="section">
             <div class="section-head"><h2 data-i18n="displayResult">展示结果</h2><span id="locateResultBadge" class="pill">未调用</span></div>
             <div class="section-body canvas-stage"><canvas id="locateCanvas"></canvas></div>
           </section>
         </div>
 
-        <div id="poseView" class="result-layout pose-layout hidden">
+        <div id="poseView" class="result-layout pose-layout">
           <section class="section">
             <div class="section-head"><h2 data-i18n="videoSequences">视频序列</h2><span id="poseSeqBadge" class="pill">0</span></div>
             <div class="section-body pose-sequence-body">
@@ -1084,6 +1098,10 @@
           <input id="settingMinFrames" type="number" min="1" max="10000" step="1" value="20">
         </label>
         <label class="settings-modal-row">
+          <span data-i18n="settingMaxFrames">序列最大帧数</span>
+          <input id="settingMaxFrames" type="number" min="1" max="10000" step="1" value="500">
+        </label>
+        <label class="settings-modal-row">
           <span data-i18n="settingKeepStatic">保留静止序列</span>
           <select id="settingKeepStatic">
             <option value="no" data-i18n="no">否</option>
@@ -1107,10 +1125,14 @@
     <div class="modal">
       <h2 id="noticeModalTitle">提示</h2>
       <p id="noticeModalBody"></p>
-      <button id="closeNoticeModal" type="button" class="secondary" data-i18n="close">关闭</button>
+      <div id="noticeModalActions" class="action-row">
+        <button id="noticeModalConfirm" type="button" data-i18n="confirm">确定</button>
+        <button id="closeNoticeModal" type="button" class="secondary" data-i18n="close">关闭</button>
+      </div>
     </div>
   </div>
 
+  <script src="ort.wasm.min.js"></script>
   <script src="persondet_wasm.js"></script>
   <script src="persondet_weights.js"></script>
   <script src="persondet.js"></script>
@@ -1120,18 +1142,18 @@
   <script>
     const $ = (id) => document.getElementById(id);
     const clientModeConfig = String(window.WAgentBrowserClientMode || "").trim().toLowerCase();
-    const allowedModes = clientModeConfig === "pose" || clientModeConfig === "gait" ? [clientModeConfig] : ["locate", "pose", "gait"];
-    const defaultMode = allowedModes[0] || "gait";
+    const allowedModes = clientModeConfig === "pose" || clientModeConfig === "gait" ? [clientModeConfig] : ["pose", "gait"];
+    const defaultMode = allowedModes[0] || "pose";
     const state = {
       mode: defaultMode,
       locale: localStorage.getItem("wAgentBrowserLocale") || "zh-CN",
       apiMode: "auto",
       cache: { dir: null, ready: false, supported: "showDirectoryPicker" in window },
-      poseSettings: { frameJump: 1, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, keepStatic: true },
-      gaitSettings: { frameJump: 3, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, keepStatic: false },
+      poseSettings: { frameJump: 1, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, maxFrames: 500, keepStatic: true },
+      gaitSettings: { frameJump: 3, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, maxFrames: 500, keepStatic: false },
       locateImage: null,
       pose: { file: null, sequences: [], selected: "", busy: false, selecting: false, abortController: null, pendingCalls: 0, autoExtractDone: false, autoCharge: null, parsedToken: "" },
-      gait: { file1: null, file2: null, video2Duration: 0, seq1: [], seq2: [], seq2All: [], selected1: "", selected2: [], sortMode: "similarity", seq2Page: 1, abortController: null, pendingCalls: 0, progress: { video1: "", video2: "" }, autoCharge: null, busy: false, parsed1Token: "", parsed2Token: "" },
+      gait: { file1: null, file2: null, video2Duration: 0, seq1: [], seq2: [], seq2All: [], selected1: "", selected2: [], sortMode: "similarity", seq2Page: 1, abortController: null, abort1: null, abort2: null, pendingCalls: 0, prefetchQueue: [], prefetchActive: false, progress: { video1: "", video2: "" }, autoCharge: null, busy: false, busy1: false, busy2: false, comparing: false, parsed1Token: "", parsed2Token: "" },
       chargeBatchActive: false,
       chargeBatchSummary: null,
       trialRemainingAmount: NaN,
@@ -1140,6 +1162,7 @@
       sessionAPIKey: null,
       sessionUser: null,
       sessionAPIKeyPromise: null,
+      noticeResolver: null,
       examples: {
         pose: { videos: [], selectedVideo: "" },
         gait: { video1: [], video2: [], selectedVideo1: "", selectedVideo2: "", comparisons: [] },
@@ -1154,7 +1177,7 @@
         navX402Support: "X402 支持",
         billingRecharge: "计费&充值",
         apiKeyManagement: "API Key 管理",
-        navDemos: "Demo 下载",
+        navDemos: "资源下载",
         localeLabel: "language",
         login: "登录",
         loggedIn: "已登录",
@@ -1188,8 +1211,9 @@
         secondUnit: "秒",
         chargeConfirm: "本次上传总序列数 {count}，消耗 {amount}。",
         chargeAuto: "本次上传总序列数 {count}，消耗 {amount}。自动模式将直接上传。",
-        manualChargeTrial: "本次上传总序列数 {count}，消耗 {amount}，当前算法剩余免费试用额度 {remaining}。",
-        poseManualChargeRegistered: "本次上传消耗{amount}，账户剩余{remaining}。",
+        manualChargeTrial: "本次调用消耗 {amount}，剩余试用额度 {remaining}。",
+        poseManualChargeTrial: "本次调用消耗 {amount}，剩余试用额度 {remaining}。",
+        poseManualChargeRegistered: "本次调用消耗{amount}，账户剩余{remaining}。",
         chargeDoneTrial: "本次调用消耗 {amount}，当前算法剩余免费试用额度 {remaining}。",
         chargeMoreQuotaHint: "如需要更多使用额度，可登录后使用。",
         chargeMoreQuotaHintHTML: "如需要更多使用额度，可{link}后使用。",
@@ -1200,7 +1224,9 @@
         chargeTopUpLink: "充值",
         trialQuotaInsufficient: "当前算法免费试用额度不足，请登录后使用。",
         startLocate: "开始图搜",
-        poseExtractButton: "提取人体关节点",
+        poseExtractButton: "提取序列关节点",
+        batchCallUseAPI: "批量调用，请使用",
+        apiLinkText: "API",
         run: "运行",
         stop: "停止",
         compare: "比对",
@@ -1231,6 +1257,7 @@
         prevFrame: "上一帧",
         nextFrame: "下一帧",
         close: "关闭",
+        confirm: "确定",
         cacheDirTitle: "本地缓存目录",
         cacheDirDescription: "API 结果、合成视频和序列图片会保存到你选择的本地目录，减少页面内存占用并便于复用。浏览器需要你手动授权目录。",
         settingsButton: "设置",
@@ -1239,6 +1266,7 @@
         settingMinBoxWidth: "人形最小宽度",
         settingMinBoxHeight: "人形最小高度",
         settingMinFrames: "序列最小帧数",
+        settingMaxFrames: "序列最大帧数",
         settingKeepStatic: "保留静止序列",
         settingCacheDir: "缓存目录",
         yes: "是",
@@ -1258,9 +1286,15 @@
         poseApiAutoWaiting: "",
         poseStopping: "视频解析：正在停止，已提取 {count} 个序列。",
         poseParsing: "视频解析：正在本地跟踪视频序列...",
+        videoAssetsLoading: "视频解析：正在加载浏览器解析资源...",
+        videoDetectorLoading: "视频解析：正在准备检测模型...",
+        videoMetadataLoading: "视频解析：正在读取视频信息...",
+        videoFpsSampling: "视频解析：正在估算视频帧率...",
+        videoDecodePreparing: "视频解析：正在读取视频帧...",
+        videoDecodeStarted: "视频解析：正在解码视频帧...",
         poseExtractedContinue: "视频解析：已提取 {count} 个序列，仍在继续解析...",
         poseDone: "视频解析：完成，提取 {count} 个序列。",
-        poseProgress: "视频解析：当前第 {current} / {total} 帧，已提取 {count} 个序列",
+        poseProgress: "解析进度：第 {current} / {total} 帧，已提取 {count} 个序列",
         poseStopped: "视频解析：已停止，已提取 {count} 个序列。",
         poseFailed: "视频解析：序列提取失败。",
         poseAutoCalling: "",
@@ -1311,6 +1345,7 @@
         needGaitSelection: "请选择视频1的一个序列，以及视频2的一个或多个序列。",
         extractingSelectedFeatures: "",
         invalidLeftSequence: "视频1选中序列无效。",
+        missingDemoFeature: "示例特征文件缺失，请联系管理员重新生成示例数据。",
         compareFailed: "比对失败。",
         unknown: "未知",
       },
@@ -1320,7 +1355,7 @@
         navX402Support: "X402 Support",
         billingRecharge: "Pricing & Recharge",
         apiKeyManagement: "API Keys",
-        navDemos: "Demos",
+        navDemos: "Resources",
         localeLabel: "language",
         login: "Sign In",
         loggedIn: "Signed In",
@@ -1354,8 +1389,9 @@
         secondUnit: "sec",
         chargeConfirm: "This upload has {count} sequence(s) and will use {amount}.",
         chargeAuto: "This upload has {count} sequence(s) and will use {amount}. Auto mode continues without confirmation.",
-        manualChargeTrial: "This upload has {count} sequence(s), uses {amount}. Remaining free trial quota for this algorithm: {remaining}.",
-        poseManualChargeRegistered: "This upload uses {amount}. Account remaining: {remaining}.",
+        manualChargeTrial: "This call uses {amount}. Remaining free trial quota for this algorithm: {remaining}.",
+        poseManualChargeTrial: "This call uses {amount}. Remaining free trial quota for this algorithm: {remaining}.",
+        poseManualChargeRegistered: "This call uses {amount}. Account remaining: {remaining}.",
         chargeDoneTrial: "This call used {amount}. Remaining free trial quota for this algorithm: {remaining}.",
         chargeMoreQuotaHint: "For more quota, sign in.",
         chargeMoreQuotaHintHTML: "For more quota, visit the {link} page and sign in.",
@@ -1366,7 +1402,9 @@
         chargeTopUpLink: "top up",
         trialQuotaInsufficient: "Free trial quota for this algorithm is insufficient. Please sign in to continue.",
         startLocate: "Start Search",
-        poseExtractButton: "Extract Human Pose",
+        poseExtractButton: "Extract Sequence Pose",
+        batchCallUseAPI: "For batch calls, use the ",
+        apiLinkText: "API",
         run: "Run",
         stop: "Stop",
         compare: "Compare",
@@ -1397,6 +1435,7 @@
         prevFrame: "Prev frame",
         nextFrame: "Next frame",
         close: "Close",
+        confirm: "Confirm",
         cacheDirTitle: "Local cache directory",
         cacheDirDescription: "API results, rendered videos, and sequence frames are saved to your selected local directory to reduce memory use and make reuse easier. The browser requires manual directory permission.",
         settingsButton: "Settings",
@@ -1405,6 +1444,7 @@
         settingMinBoxWidth: "Min person width",
         settingMinBoxHeight: "Min person height",
         settingMinFrames: "Min sequence frames",
+        settingMaxFrames: "Max sequence frames",
         settingKeepStatic: "Keep static sequences",
         settingCacheDir: "Cache directory",
         yes: "Yes",
@@ -1424,9 +1464,15 @@
         poseApiAutoWaiting: "",
         poseStopping: "Video parsing: stopping, {count} sequences extracted.",
         poseParsing: "Video parsing: tracking sequences locally...",
+        videoAssetsLoading: "Video parsing: loading browser parser assets...",
+        videoDetectorLoading: "Video parsing: preparing detector...",
+        videoMetadataLoading: "Video parsing: reading video metadata...",
+        videoFpsSampling: "Video parsing: estimating video FPS...",
+        videoDecodePreparing: "Video parsing: reading video frames...",
+        videoDecodeStarted: "Video parsing: decoding video frames...",
         poseExtractedContinue: "Video parsing: {count} sequences extracted, still parsing...",
         poseDone: "Video parsing: done, {count} sequences extracted.",
-        poseProgress: "Video parsing: frame {current} / {total}, {count} sequences extracted",
+        poseProgress: "Parsing progress: frame {current} / {total}, {count} sequences extracted",
         poseStopped: "Video parsing: stopped, {count} sequences extracted.",
         poseFailed: "Video parsing: sequence extraction failed.",
         poseAutoCalling: "",
@@ -1477,6 +1523,7 @@
         needGaitSelection: "Select one sequence from video 1 and one or more sequences from video 2.",
         extractingSelectedFeatures: "",
         invalidLeftSequence: "Selected sequence from video 1 is invalid.",
+        missingDemoFeature: "Demo feature file is missing. Please ask the administrator to rebuild demo data.",
         compareFailed: "Compare failed.",
         unknown: "unknown",
       },
@@ -1680,11 +1727,19 @@
     }
 
     function updateActionButtons() {
-      $("poseExtract").textContent = state.pose.busy ? t("stop") : t("poseExtractButton");
-      $("gaitExtract").textContent = state.gait.busy ? t("stop") : t("run");
-      const gaitReady = gaitCurrentVideoParsed("video1") && gaitCurrentVideoParsed("video2");
-      $("gaitExtract").classList.toggle("secondary", gaitReady && !state.gait.busy);
-      $("gaitCompare").classList.toggle("secondary", !gaitReady || state.gait.busy);
+      const poseExtractButton = $("poseExtract");
+      if (poseExtractButton) {
+        poseExtractButton.textContent = t("poseExtractButton");
+        poseExtractButton.disabled = true;
+        poseExtractButton.classList.add("hidden");
+      }
+      const gaitBusy = !!(state.gait.busy || state.gait.busy1 || state.gait.busy2);
+      const gaitCanCompare = Boolean(state.gait.selected1 && state.gait.selected2.length && !state.gait.comparing);
+      $("gaitExtract").textContent = t("pause");
+      $("gaitExtract").disabled = !gaitBusy;
+      $("gaitExtract").classList.toggle("secondary", !gaitBusy);
+      $("gaitCompare").disabled = !gaitCanCompare;
+      $("gaitCompare").classList.toggle("secondary", !gaitCanCompare);
       $("gaitPagePrev").textContent = t("prevPage");
       $("gaitPageNext").textContent = t("nextPage");
     }
@@ -1727,18 +1782,20 @@
 
     function defaultBrowserSettings(kind) {
       return kind === "gait"
-        ? { frameJump: 3, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, keepStatic: false }
-        : { frameJump: 1, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, keepStatic: true };
+        ? { frameJump: 3, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, maxFrames: 500, keepStatic: false }
+        : { frameJump: 1, minBoxWidth: 64, minBoxHeight: 128, minFrames: 20, maxFrames: 500, keepStatic: true };
     }
 
     function normalizeBrowserSettings(value, fallback) {
       const source = value && typeof value === "object" ? value : {};
       const base = fallback || defaultBrowserSettings("pose");
+      const minFrames = clampInteger(source.minFrames ?? source.min_frames, base.minFrames, 1, 10000);
       return {
         frameJump: clampInteger(source.frameJump ?? source.frame_jump, base.frameJump, 1, 30),
         minBoxWidth: clampInteger(source.minBoxWidth ?? source.min_box_width, base.minBoxWidth, 1, 4096),
         minBoxHeight: clampInteger(source.minBoxHeight ?? source.min_box_height, base.minBoxHeight, 1, 4096),
-        minFrames: clampInteger(source.minFrames ?? source.min_frames, base.minFrames, 1, 10000),
+        minFrames,
+        maxFrames: Math.max(minFrames, clampInteger(source.maxFrames ?? source.max_frames, base.maxFrames, 1, 10000)),
         keepStatic: Boolean(source.keepStatic ?? source.keep_static ?? base.keepStatic),
       };
     }
@@ -1758,6 +1815,7 @@
         min_box_width: source.minBoxWidth,
         min_box_height: source.minBoxHeight,
         min_frames: source.minFrames,
+        max_frames: source.maxFrames,
         keep_static: source.keepStatic,
       };
     }
@@ -1769,6 +1827,7 @@
       $("settingMinBoxWidth").value = String(settings.minBoxWidth);
       $("settingMinBoxHeight").value = String(settings.minBoxHeight);
       $("settingMinFrames").value = String(settings.minFrames);
+      $("settingMaxFrames").value = String(settings.maxFrames);
       $("settingKeepStatic").value = settings.keepStatic ? "yes" : "no";
       $("cacheDirLabel").textContent = cacheDirDisplayName();
       $("cacheDirLabel").title = cacheDirDisplayName();
@@ -1780,6 +1839,7 @@
         minBoxWidth: $("settingMinBoxWidth").value,
         minBoxHeight: $("settingMinBoxHeight").value,
         minFrames: $("settingMinFrames").value,
+        maxFrames: $("settingMaxFrames").value,
         keepStatic: $("settingKeepStatic").value === "yes",
       }, defaultBrowserSettings(activeSettingsKind()));
       if (activeSettingsKind() === "pose") state.poseSettings = settings;
@@ -1958,6 +2018,14 @@
       return String([seq?.source, seq?.id || "sequence"].filter(Boolean).join("_")).replace(/[^a-zA-Z0-9_.-]/g, "_");
     }
 
+    function sequenceCacheIDFromParts(source, id) {
+      return String([source, id || "sequence"].filter(Boolean).join("_")).replace(/[^a-zA-Z0-9_.-]/g, "_");
+    }
+
+    function isDemoGaitSequence(seq) {
+      return String(seq?.source || "").startsWith("demo-");
+    }
+
     function setStatus(message, type = "") {
       $("status").textContent = message;
       $("status").className = "status" + (type ? " " + type : "");
@@ -2001,19 +2069,41 @@
       return `<a href="/portal#walletSection" target="_blank" rel="noopener">${escapeHTML(t("chargeTopUpLink"))}</a>`;
     }
 
-    function showNoticeHTML(title, html) {
+    function showNoticeHTML(title, html, options = {}) {
       const modal = $("noticeModal");
       const titleEl = $("noticeModalTitle");
       const body = $("noticeModalBody");
+      const confirm = $("noticeModalConfirm");
+      const close = $("closeNoticeModal");
       if (!modal || !titleEl || !body) return;
       titleEl.textContent = title || "";
       body.innerHTML = html || "";
+      if (confirm) {
+        confirm.classList.toggle("hidden", !options.showConfirm);
+        confirm.textContent = options.confirmText || t("confirm");
+      }
+      if (close) {
+        close.textContent = options.cancelText || t("close");
+      }
       modal.classList.remove("hidden");
     }
 
-    function closeNoticeModal() {
+    function closeNoticeModal(result = false) {
+      if (state.noticeResolver) {
+        const resolve = state.noticeResolver;
+        state.noticeResolver = null;
+        resolve(!!result);
+      }
       const modal = $("noticeModal");
       if (modal) modal.classList.add("hidden");
+    }
+
+    function showConfirmNoticeHTML(title, html) {
+      if (state.noticeResolver) closeNoticeModal(false);
+      showNoticeHTML(title, html, { showConfirm: true, cancelText: t("close") });
+      return new Promise((resolve) => {
+        state.noticeResolver = resolve;
+      });
     }
 
     function chargeResultMessageHTML(result) {
@@ -2159,8 +2249,8 @@
       return key ? { identity: "registered", key } : { identity: "trial", key: "" };
     }
 
-    async function requestAPI(method, path, body, key = "") {
-      const headers = { "Content-Type": "application/json" };
+    async function requestAPI(method, path, body, key = "", extraHeaders = {}) {
+      const headers = { "Content-Type": "application/json", ...extraHeaders };
       if (key) headers.Authorization = "Bearer " + key;
       const init = { method, headers, credentials: "same-origin" };
       if (body !== undefined && body !== null) init.body = JSON.stringify(body);
@@ -2179,6 +2269,27 @@
 
     async function requestJSON(path, body, key = "") {
       return requestAPI("POST", path, body, key);
+    }
+
+    async function requestMultipart(path, formData, key = "", extraHeaders = {}) {
+      const headers = { ...extraHeaders };
+      if (key) headers.Authorization = "Bearer " + key;
+      const resp = await fetch(baseURL() + path, {
+        method: "POST",
+        headers,
+        credentials: "same-origin",
+        body: formData,
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const err = data?.error || {};
+        const error = new Error(err.message || err.code || t("apiFailed"));
+        error.status = resp.status;
+        error.code = err.code || "";
+        error.body = data;
+        throw error;
+      }
+      return data;
     }
 
     async function requestGET(path, key = "") {
@@ -2247,9 +2358,11 @@
         count: sequenceCount,
         amount: moneyText(amount),
       });
-      chargeStatusTarget(kind)(message);
-      if (!requireConfirm) return true;
-      return window.confirm(message);
+      if (!requireConfirm) {
+        chargeStatusTarget(kind)(message);
+        return true;
+      }
+      return showConfirmNoticeHTML(t("confirm"), escapeHTML(message));
     }
 
     async function manualChargeNotice(kind, count, amount) {
@@ -2472,12 +2585,13 @@
         const content = await frameBase64(frame);
         if (!content) continue;
         out.push({
-          ...frame,
           index,
+          frame_id: frame?.frame_id ?? frame?.image_id ?? frame?.id ?? index + 1,
+          time: frame?.time,
+          score: frame?.score,
+          det: frame?.det,
+          crop: frame?.crop,
           content_base64: content,
-          cacheHandle: undefined,
-          preview_base64: undefined,
-          cacheFile: undefined,
         });
       }
       return out;
@@ -2487,18 +2601,39 @@
       const credentials = await callCredentials();
       if (!options.silentCharge) {
         const confirmed = await showChargeNotice(kind, 1, state.apiMode === "manual", (frames || []).length);
-        if (!confirmed) throw new Error(t("apiFailed"));
+        if (!confirmed) {
+          const error = new Error("");
+          error.cancelled = true;
+          throw error;
+        }
       }
       const apiFrames = await framesForAPI(frames);
       try {
         let data;
         if (credentials.identity === "trial") {
-          const path = kind === "pose" ? "/v1/public/sequences/trial/gait-pose" : "/v1/public/sequences/trial/parse";
-          data = await requestJSON(path, { frames: apiFrames, fingerprint: browserFingerprint() });
+          const created = await requestJSON("/v1/public/sequences", { frame_count: apiFrames.length });
+          const taskToken = String(created?.task_token || "");
+          const uploadToken = uploadTokenFromUploadURL(created?.uploads?.[0]?.upload_url);
+          if (!taskToken) throw new Error("task_token missing");
+          if (!uploadToken) throw new Error("upload_token missing");
+          await uploadFramesBatch(created.task_id, uploadToken, apiFrames, "", { "X-Task-Token": taskToken });
+          const uploadedFrames = (created.uploads || []).map((upload) => ({
+            index: upload.index,
+            object_key: upload.object_key,
+          }));
+          const path = kind === "pose" ? `/v1/public/trial/sequences/${created.task_id}/gait-pose` : `/v1/public/trial/sequences/${created.task_id}/parse`;
+          data = await requestAPI("POST", path, { frames: uploadedFrames, fingerprint: browserFingerprint() }, "", { "X-Task-Token": taskToken });
         } else {
           const created = await requestJSON("/v1/sequences", { frame_count: apiFrames.length }, credentials.key);
+          const uploadToken = uploadTokenFromUploadURL(created?.uploads?.[0]?.upload_url);
+          if (!uploadToken) throw new Error("upload_token missing");
+          await uploadFramesBatch(created.task_id, uploadToken, apiFrames, credentials.key);
+          const uploadedFrames = (created.uploads || []).map((upload) => ({
+            index: upload.index,
+            object_key: upload.object_key,
+          }));
           const path = kind === "pose" ? `/v1/sequences/${created.task_id}/gait-pose` : `/v1/sequences/${created.task_id}/parse`;
-          data = await requestJSON(path, { frames: apiFrames }, credentials.key);
+          data = await requestJSON(path, { frames: uploadedFrames }, credentials.key);
         }
         updateKnownChargeState(data);
         if (state.chargeBatchActive) addChargeBatchResult(kind, data, apiFrames.length);
@@ -2540,6 +2675,15 @@
       });
     }
 
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(dataURLBase64(String(reader.result || "")));
+        reader.onerror = () => reject(reader.error || new Error(t("readFileFailed")));
+        reader.readAsDataURL(blob);
+      });
+    }
+
     async function readFileHandleAsBase64(handle) {
       if (!handle) return "";
       const file = await handle.getFile();
@@ -2557,6 +2701,8 @@
 
     async function frameBase64(frame) {
       if (frame?.cacheHandle) return readFileHandleAsBase64(frame.cacheHandle);
+      if (frame?.content_blob instanceof Blob) return blobToBase64(frame.content_blob);
+      if (frame?.blob instanceof Blob) return blobToBase64(frame.blob);
       return frame?.content_base64 || frame?.image_base64 || frame?.base64 || "";
     }
 
@@ -2566,6 +2712,36 @@
 
     function frameID(frame, index) {
       return String(frame?.frame_id ?? frame?.image_id ?? frame?.id ?? index + 1);
+    }
+
+    async function frameBlob(frame) {
+      if (frame?.content_blob instanceof Blob) return frame.content_blob;
+      if (frame?.blob instanceof Blob) return frame.blob;
+      if (frame?.cacheHandle) return await frame.cacheHandle.getFile();
+      const content = await frameBase64(frame);
+      if (!content) return null;
+      return base64ToBlob(content, "image/jpeg");
+    }
+
+    function uploadTokenFromUploadURL(uploadURL) {
+      try {
+        const parsed = new URL(String(uploadURL || ""), window.location.origin);
+        return parsed.searchParams.get("token") || "";
+      } catch {
+        return "";
+      }
+    }
+
+    async function uploadFramesBatch(taskID, uploadToken, frames, key = "", extraHeaders = {}) {
+      const form = new FormData();
+      form.append("upload_token", uploadToken);
+      for (let index = 0; index < frames.length; index += 1) {
+        const blob = await frameBlob(frames[index]);
+        if (!blob) continue;
+        form.append("frames", blob, `${String(index).padStart(6, "0")}.jpg`);
+      }
+      const prefix = extraHeaders["X-Task-Token"] ? "/v1/public/sequences" : "/v1/sequences";
+      return requestMultipart(`${prefix}/${taskID}/uploads/batch`, form, key, extraHeaders);
     }
 
     function frameAliases(frame, index) {
@@ -2592,6 +2768,18 @@
       const frames = seq.frames || [];
       const frame = frames[Math.floor(Math.max(0, frames.length - 1) / 2)] || frames[0];
       return framePreviewBase64(frame) || framePreviewBase64(frames.find((item) => framePreviewBase64(item)));
+    }
+
+    async function ensureSequencePreview(seq) {
+      if (!seq || seq.preview_base64) return;
+      const frames = seq.frames || [];
+      const frame = frames[Math.floor(Math.max(0, frames.length - 1) / 2)] || frames[0];
+      if (!frame) return;
+      const preview = framePreviewBase64(frame) || await frameBase64(frame);
+      if (preview) {
+        seq.preview_base64 = preview;
+        if (!frame.preview_base64) frame.preview_base64 = preview;
+      }
     }
 
     function sequencePayloads(apiResult) {
@@ -2818,27 +3006,54 @@
       return error && (error.name === "AbortError" || /已停止|aborted|abort/i.test(error.message || ""));
     }
 
+    async function removeCachedSequenceFrames(cacheID) {
+      if (!state.cache.ready || !state.cache.dir || !cacheID || typeof state.cache.dir.removeEntry !== "function") return;
+      try {
+        const sequencesDir = await state.cache.dir.getDirectoryHandle("sequences");
+        await sequencesDir.removeEntry(cacheID, { recursive: true });
+      } catch (_) {}
+    }
+
+    function frameWritableBlob(frame) {
+      const content = frame?.content_base64 || frame?.image_base64 || frame?.base64 || "";
+      if (frame?.content_blob instanceof Blob) return frame.content_blob;
+      if (frame?.blob instanceof Blob) return frame.blob;
+      return content ? base64ToBlob(content, "image/jpeg") : null;
+    }
+
+    async function storeSequenceFrame(seq, index, frame, dir, previewIndex) {
+      const content = frame?.content_base64 || frame?.image_base64 || frame?.base64 || "";
+      const blob = frameWritableBlob(frame);
+      if (!blob || frame.cacheHandle) return false;
+      const name = `${String(index + 1).padStart(6, "0")}.jpg`;
+      const handle = await writeCacheFile(dir, name, blob);
+      frame.cacheFile = name;
+      frame.cacheHandle = handle;
+      const previewContent = (index === 0 || index === previewIndex) ? (content || await blobToBase64(blob)) : "";
+      if (!seq.preview_base64 && index === previewIndex) seq.preview_base64 = previewContent;
+      if (!frame.preview_base64 && (index === 0 || index === previewIndex)) {
+        frame.preview_base64 = previewContent;
+      }
+      delete frame.content_base64;
+      delete frame.image_base64;
+      delete frame.base64;
+      delete frame.content_blob;
+      delete frame.blob;
+      return true;
+    }
+
     async function storeSequenceFrames(seq) {
       if (!state.cache.ready || !seq || seq.framesSaved) return seq;
       const frames = seq.frames || [];
       const previewIndex = Math.floor(Math.max(0, frames.length - 1) / 2);
       try {
+        if (!frames.some((frame) => frameWritableBlob(frame) && !frame.cacheHandle)) {
+          seq.framesSaved = frames.some((frame) => frame.cacheHandle);
+          return seq;
+        }
         const dir = await cacheSubdir(["sequences", sequenceCacheID(seq), "frames"]);
         for (let index = 0; index < frames.length; index += 1) {
-          const frame = frames[index];
-          const content = frame?.content_base64 || frame?.image_base64 || frame?.base64 || "";
-          if (!content) continue;
-          const name = `${String(index + 1).padStart(6, "0")}.jpg`;
-          const handle = await writeCacheFile(dir, name, base64ToBlob(content, "image/jpeg"));
-          frame.cacheFile = name;
-          frame.cacheHandle = handle;
-          if (!seq.preview_base64 && index === previewIndex) seq.preview_base64 = content;
-          if (!frame.preview_base64 && (index === 0 || index === previewIndex)) {
-            frame.preview_base64 = content;
-          }
-          delete frame.content_base64;
-          delete frame.image_base64;
-          delete frame.base64;
+          await storeSequenceFrame(seq, index, frames[index], dir, previewIndex);
         }
         if (!seq.preview_base64) {
           const previewFrame = frames.find((item) => framePreviewBase64(item));
@@ -2852,14 +3067,53 @@
     }
 
     async function extractVideoSequences(file, label, target, onProgress, config, signal) {
+      if (onProgress) onProgress({ stage: "assets_loading" });
       await ensurePersonDet();
       if (!file) throw new Error(t("needVideo"));
       const sequences = Array.isArray(target) ? target : [];
+      const minFrames = Math.max(1, Number(config?.minFrames || defaultBrowserSettings(label === "pose" ? "pose" : "gait").minFrames || 20));
+      const streamingCache = new Map();
+      const streamingCacheID = (seq) => sequenceCacheIDFromParts(label, seq?.seq_id || seq?.sequence_id || seq?.id || "sequence");
+      const ensureStreamingCacheEntry = (seq) => {
+        const id = streamingCacheID(seq);
+        let entry = streamingCache.get(id);
+        if (!entry) {
+          entry = { id, active: false, dir: null, failed: false, nextIndex: 0, written: 0 };
+          streamingCache.set(id, entry);
+        }
+        return entry;
+      };
       const extracted = await window.WAgentPersonDet.extractLocalVideoSequence(file, {
         config: config || {},
+        onFrame: async (seq, frame, index) => {
+          if (!state.cache.ready || !seq || !Array.isArray(seq.frames)) return;
+          const entry = ensureStreamingCacheEntry(seq);
+          if (!entry || entry.failed) return;
+          if (!entry.active && seq.frames.length < minFrames) return;
+          try {
+            if (!seq.frames.slice(entry.nextIndex).some((item) => frameWritableBlob(item) && !item.cacheHandle)) return;
+            if (!entry.dir) entry.dir = await cacheSubdir(["sequences", entry.id, "frames"]);
+            entry.active = true;
+            const previewIndex = Math.floor(Math.max(0, seq.frames.length - 1) / 2);
+            for (let i = entry.nextIndex; i < seq.frames.length; i += 1) {
+              if (await storeSequenceFrame(seq, i, seq.frames[i], entry.dir, previewIndex)) entry.written += 1;
+              entry.nextIndex = i + 1;
+            }
+          } catch (error) {
+            entry.failed = true;
+            await removeCachedSequenceFrames(entry.id);
+            console.warn("[W-Agent] streaming frame cache write failed:", error);
+          }
+        },
+        onDiscard: async (seq) => {
+          const entry = streamingCache.get(streamingCacheID(seq));
+          if (entry && (entry.active || entry.dir || entry.written > 0)) await removeCachedSequenceFrames(entry.id);
+          if (seq && Array.isArray(seq.frames)) seq.frames = [];
+        },
         signal,
         onSequence: async (seq) => {
           const item = normalizeLocalSequence(seq, label, sequences.length);
+          await ensureSequencePreview(item);
           await storeSequenceFrames(item);
           const existingIndex = sequences.findIndex((entry) => entry.id === item.id);
           if (existingIndex >= 0) sequences[existingIndex] = { ...sequences[existingIndex], ...item };
@@ -2874,6 +3128,7 @@
       if (!sequences.length && Array.isArray(extracted?.sequences)) {
         for (const seq of extracted.sequences) {
           const item = normalizeLocalSequence(seq, label, sequences.length);
+          await ensureSequencePreview(item);
           await storeSequenceFrames(item);
           sequences.push(item);
         }
@@ -2920,8 +3175,11 @@
         : (seq.status === "loading" ? t("featureExtracting")
           : seq.status === "error" ? t("apiFailedStatus")
           : seq.status === "invalid" ? t("invalid") : "");
+      const errorTitle = isPose
+        ? (seq.poseStatus === "error" ? (seq.poseError || t("poseStatusAPIFailed")) : "")
+        : (seq.status === "error" ? (seq.errorMessage || t("apiFailedStatus")) : "");
       return `
-        <article class="${classes.join(" ")}" data-id="${escapeHTML(seq.id)}" data-mode="${escapeHTML(mode)}">
+        <article class="${classes.join(" ")}" data-id="${escapeHTML(seq.id)}" data-mode="${escapeHTML(mode)}"${errorTitle ? ` title="${escapeHTML(errorTitle)}"` : ""}>
           <div class="sequence-thumb">${thumbHTML}</div>
           <div class="sequence-meta">
             <div class="sequence-line"><strong>${escapeHTML(t("sequenceLabel", { index: index + 1 }))}</strong><span>${escapeHTML(t("frameUnit", { count: frameCount }))}</span></div>
@@ -3123,6 +3381,7 @@
       const lines = [
         escapeHTML(t("gaitStatusLine", { video: t("video1"), progress: progress.video1 || "-" })) + gaitChargeSuffixHTML("video1"),
         escapeHTML(t("gaitStatusLine", { video: t("video2"), progress: progress.video2 || "-" })) + gaitChargeSuffixHTML("video2"),
+        `${escapeHTML(t("batchCallUseAPI"))}<a href="https://www.w-agent.cn/portal?api=sequence#capabilities" target="_blank" rel="noopener">${escapeHTML(t("apiLinkText"))}</a>`,
       ];
       const trialSummary = gaitTrialRemainingSummaryHTML();
       if (trialSummary) lines.push(trialSummary);
@@ -3132,12 +3391,25 @@
     function gaitProgressText(event, sequenceCount) {
       if (!event) return "";
       if (event.stage === "done") return t("gaitDonePart", { count: sequenceCount });
+      const preparing = videoPreparingText(event);
+      if (preparing) return preparing;
       if (!event.processed) return "";
       return t("gaitProgressPart", {
         current: event.current_frame || event.processed,
         total: event.total || t("unknown"),
         count: sequenceCount,
       });
+    }
+
+    function videoPreparingText(event) {
+      if (!event) return "";
+      if (event.stage === "assets_loading") return t("videoAssetsLoading");
+      if (event.stage === "detector_loading") return t("videoDetectorLoading");
+      if (event.stage === "metadata_loading") return t("videoMetadataLoading");
+      if (event.stage === "fps_sampling") return t("videoFpsSampling");
+      if (event.stage === "decode_prepare") return t("videoDecodePreparing");
+      if (event.stage === "decode") return t("videoDecodeStarted");
+      return "";
     }
 
     function handleGaitExtractionProgress(group, event, progress) {
@@ -3155,12 +3427,98 @@
       renderGaitProgress(progress);
     }
 
+    function gaitExtractConfig() {
+      return {
+        defaultJump: state.gaitSettings.frameJump,
+        minBoxWidth: state.gaitSettings.minBoxWidth,
+        minBoxHeight: state.gaitSettings.minBoxHeight,
+        minFrames: state.gaitSettings.minFrames,
+        maxFrames: state.gaitSettings.maxFrames,
+        requireMoving: !state.gaitSettings.keepStatic,
+      };
+    }
+
+    function refreshGaitBusy() {
+      state.gait.busy = !!(state.gait.busy1 || state.gait.busy2);
+      updateActionButtons();
+    }
+
+    function pauseGaitExtraction() {
+      if (state.gait.abort1) state.gait.abort1.abort();
+      if (state.gait.abort2) state.gait.abort2.abort();
+      if (state.gait.abortController) state.gait.abortController.abort();
+      setStatus(t("gaitStopping", { left: state.gait.seq1.length, right: state.gait.seq2.length }));
+    }
+
+    async function extractGaitVideo(group) {
+      const isVideo1 = group === "video1";
+      const file = isVideo1 ? state.gait.file1 : state.gait.file2;
+      if (!file) return;
+      const token = gaitFileToken(file);
+      if (isVideo1 && state.gait.parsed1Token === token) return;
+      if (!isVideo1 && state.gait.parsed2Token === token) return;
+      if (isVideo1 && state.gait.abort1) state.gait.abort1.abort();
+      if (!isVideo1 && state.gait.abort2) state.gait.abort2.abort();
+      const controller = new AbortController();
+      if (isVideo1) {
+        state.gait.busy1 = true;
+        state.gait.abort1 = controller;
+        state.gait.selected1 = "";
+        state.gait.seq1 = [];
+        state.gait.parsed1Token = "";
+        if (state.gait.autoCharge && state.gait.autoCharge.video1) state.gait.autoCharge.video1 = { count: 0, amount: 0, trial: false, remaining: NaN };
+      } else {
+        state.gait.busy2 = true;
+        state.gait.abort2 = controller;
+        state.gait.selected2 = [];
+        state.gait.seq2 = [];
+        state.gait.seq2All = [];
+        state.gait.parsed2Token = "";
+        state.gait.seq2Page = 1;
+        if (state.gait.autoCharge && state.gait.autoCharge.video2) state.gait.autoCharge.video2 = { count: 0, amount: 0, trial: false, remaining: NaN };
+      }
+      state.gait.sortMode = "similarity";
+      state.gait.progress[group] = "";
+      refreshGaitBusy();
+      renderGaitSequences();
+      renderGaitProgress(state.gait.progress);
+      try {
+        const list = isVideo1 ? state.gait.seq1 : state.gait.seq2;
+        await extractVideoSequences(file, group, list, (p) => {
+          handleGaitExtractionProgress(group, p, state.gait.progress);
+        }, gaitExtractConfig(), controller.signal);
+        if (isVideo1) {
+          state.gait.parsed1Token = token;
+        } else {
+          state.gait.parsed2Token = token;
+          state.gait.seq2All = state.gait.seq2.slice();
+          applyGaitTimeRange();
+          if (!state.gait.selected2.length) state.gait.selected2 = state.gait.seq2.map((seq) => seq.id);
+        }
+        state.gait.progress[group] = t("gaitDonePart", { count: list.length });
+        renderGaitSequences();
+        renderGaitProgress(state.gait.progress);
+      } catch (error) {
+        if (isAbortError(error)) {
+          setStatus(t("gaitStopped", { left: state.gait.seq1.length, right: state.gait.seq2.length }));
+        } else {
+          state.gait.progress[group] = error.message || t("gaitFailed");
+          renderGaitProgress(state.gait.progress);
+        }
+      } finally {
+        if (isVideo1) {
+          state.gait.busy1 = false;
+          if (state.gait.abort1 === controller) state.gait.abort1 = null;
+        } else {
+          state.gait.busy2 = false;
+          if (state.gait.abort2 === controller) state.gait.abort2 = null;
+        }
+        refreshGaitBusy();
+      }
+    }
+
     async function extractPoseSequences() {
       if (state.pose.busy) {
-        if (state.pose.abortController) state.pose.abortController.abort();
-        setPoseParseStatus(t("poseStopping", { count: state.pose.sequences.length }));
-        state.pose.autoExtractDone = true;
-        maybeShowPoseAutoChargeSummary();
         return;
       }
       try {
@@ -3171,7 +3529,7 @@
         }
         state.pose.busy = true;
         state.pose.abortController = new AbortController();
-        $("poseExtract").textContent = t("stop");
+        updateActionButtons();
         state.pose.selected = "";
         state.pose.sequences = [];
         state.pose.pendingCalls = 0;
@@ -3183,11 +3541,13 @@
           minBoxWidth: state.poseSettings.minBoxWidth,
           minBoxHeight: state.poseSettings.minBoxHeight,
           minFrames: state.poseSettings.minFrames,
+          maxFrames: state.poseSettings.maxFrames,
           requireMoving: !state.poseSettings.keepStatic,
         };
         await extractVideoSequences(state.pose.file, "pose", state.pose.sequences, (p) => {
           if (p.stage === "sequence") {
             renderPoseSequences();
+            updateActionButtons();
             if (state.apiMode === "auto") {
               state.pose.sequences.forEach((seq) => prefetchPoseSequence(seq));
             }
@@ -3195,7 +3555,11 @@
             setPoseParseStatus(t("poseDone", { count: state.pose.sequences.length }), "ok");
             state.pose.autoExtractDone = true;
             maybeShowPoseAutoChargeSummary();
-          } else if (p.processed) setPoseParseStatus(t("poseProgress", { current: p.current_frame || p.processed, total: p.total || t("unknown"), count: state.pose.sequences.length }));
+          } else {
+            const preparing = videoPreparingText(p);
+            if (preparing) setPoseParseStatus(preparing);
+            else if (p.processed) setPoseParseStatus(t("poseProgress", { current: p.current_frame || p.processed, total: p.total || t("unknown"), count: state.pose.sequences.length }));
+          }
         }, poseExtractConfig, state.pose.abortController.signal);
         renderPoseSequences();
         setPoseParseStatus(t("poseDone", { count: state.pose.sequences.length }), "ok");
@@ -3211,7 +3575,48 @@
       } finally {
         state.pose.busy = false;
         state.pose.abortController = null;
-        $("poseExtract").textContent = t("poseExtractButton");
+        updateActionButtons();
+      }
+    }
+
+    async function extractSelectedPoseSequence() {
+      if (state.apiMode !== "manual") return;
+      const seq = state.pose.sequences.find((item) => item.id === state.pose.selected);
+      if (!seq) return;
+      try {
+        state.pose.selecting = true;
+        updateActionButtons();
+        if (!seq.rawResult) {
+          if (seq.poseJSONURL) {
+            seq.poseStatus = "rendering";
+            renderPoseSequences();
+            seq.rawResult = await fetchJSONIfAvailable(seq.poseJSONURL);
+            if (!seq.rawResult) throw new Error(t("missingPoseResult"));
+          } else if (seq.posePromise) {
+            seq.rawResult = await seq.posePromise;
+          } else {
+            seq.poseStatus = "loading";
+            renderPoseSequences();
+            seq.rawResult = await runSequenceAPI("pose", seq.frames || []);
+          }
+        }
+        seq.poseStatus = "rendering";
+        renderPoseSequences();
+        await preparePoseArtifacts(seq);
+        await showPreparedPoseArtifacts(seq);
+        seq.poseStatus = "ready";
+        renderPoseSequences();
+      } catch (error) {
+        if (error.cancelled) return;
+        seq.poseStatus = "error";
+        const message = error.message || t("poseApiFailed");
+        if (error.chargeMessageHTML) setChargeStatusHTML("pose", error.chargeMessageHTML, "error");
+        else if (isTrialQuotaMessage(message)) setChargeStatus("pose", message, "error");
+        else setPoseAPIStatus(message, "error");
+        renderPoseSequences();
+      } finally {
+        state.pose.selecting = false;
+        updateActionButtons();
       }
     }
 
@@ -3292,6 +3697,7 @@
           minBoxWidth: state.gaitSettings.minBoxWidth,
           minBoxHeight: state.gaitSettings.minBoxHeight,
           minFrames: state.gaitSettings.minFrames,
+          maxFrames: state.gaitSettings.maxFrames,
           requireMoving: !state.gaitSettings.keepStatic,
         };
         const tasks = [];
@@ -3418,6 +3824,9 @@
           renderGaitSequences();
           return [seq];
         }
+        if (isDemoGaitSequence(seq)) {
+          throw new Error(t("missingDemoFeature"));
+        }
         const result = await runSequenceAPI("sequence", seq.frames || [], options);
         if (options.autoChargeGroup && state.apiMode === "auto") addGaitAutoCharge(options.autoChargeGroup, result, (seq.frames || []).length);
         const payloads = sequencePayloads(result);
@@ -3443,18 +3852,38 @@
       }
     }
 
-    async function prefetchGaitSequence(seq, list, group = "") {
-      if (!seq || seq.feature || seq.featurePromise || seq.status === "invalid") return;
+    function prefetchGaitSequence(seq, list, group = "") {
+      if (!seq || seq.feature || seq.featurePromise || seq.prefetchQueued || seq.status === "invalid" || seq.status === "error") return;
+      seq.prefetchQueued = true;
+      state.gait.prefetchQueue.push({ seq, list, group });
+      processGaitPrefetchQueue();
+    }
+
+    async function processGaitPrefetchQueue() {
+      if (state.gait.prefetchActive) return;
+      state.gait.prefetchActive = true;
       try {
-        state.gait.pendingCalls += 1;
-        await ensureFeature(seq, list, { silentCharge: state.apiMode === "auto", autoChargeGroup: group });
-      } catch (error) {
-        seq.status = "error";
-        seq.errorMessage = error.message || t("apiFailedStatus");
-        renderGaitSequences();
+        while (state.gait.prefetchQueue.length) {
+          const item = state.gait.prefetchQueue.shift();
+          const seq = item && item.seq;
+          if (!seq) continue;
+          seq.prefetchQueued = false;
+          if (state.apiMode !== "auto") continue;
+          if (seq.feature || seq.featurePromise || seq.status === "invalid" || seq.status === "error") continue;
+          try {
+            state.gait.pendingCalls += 1;
+            await ensureFeature(seq, item.list, { silentCharge: true, autoChargeGroup: item.group });
+          } catch (error) {
+            removeGaitSequence(item.list, seq);
+            renderGaitSequences();
+          } finally {
+            state.gait.pendingCalls = Math.max(0, state.gait.pendingCalls - 1);
+            renderGaitProgress(state.gait.progress || {});
+          }
+        }
       } finally {
-        state.gait.pendingCalls = Math.max(0, state.gait.pendingCalls - 1);
-        renderGaitProgress(state.gait.progress || {});
+        state.gait.prefetchActive = false;
+        if (state.gait.prefetchQueue.length) processGaitPrefetchQueue();
       }
     }
 
@@ -3467,6 +3896,7 @@
         state.pose.selecting = !hasPreparedArtifacts;
         state.pose.selected = id;
         renderPoseSequences();
+        updateActionButtons();
         if (!seq.rawResult) {
           if (seq.poseJSONURL) {
             seq.poseStatus = "rendering";
@@ -3494,6 +3924,15 @@
         seq.poseStatus = "ready";
         renderPoseSequences();
       } catch (error) {
+        if (error.cancelled) {
+          state.pose.selected = previousSelected || "";
+          renderPoseSequences();
+          const previousSeq = state.pose.sequences.find((item) => item.id === state.pose.selected);
+          if (previousSeq && previousSeq.pose2DURL && previousSeq.pose3DFrames) {
+            await showPreparedPoseArtifacts(previousSeq);
+          }
+          return;
+        }
         seq.poseStatus = "error";
         state.pose.selected = previousSelected && previousSelected !== id ? previousSelected : "";
         const message = error.message || t("poseApiFailed");
@@ -3509,6 +3948,7 @@
         }
       } finally {
         state.pose.selecting = false;
+        updateActionButtons();
       }
     }
 
@@ -4239,6 +4679,13 @@
             content = "";
           }
         }
+        if (!content) {
+          try {
+            content = await frameBase64(frame);
+          } catch (error) {
+            content = "";
+          }
+        }
         if (!content) continue;
         frames.push({ index, content });
       }
@@ -4286,28 +4733,40 @@
         const left = state.gait.seq1.find((item) => item.id === state.gait.selected1);
         let rights = state.gait.selected2.map((id) => state.gait.seq2.find((item) => item.id === id)).filter(Boolean);
         if (!left || !rights.length) throw new Error(t("needGaitSelection"));
-        const pending = [left].concat(rights).filter((seq) => seq && !seq.feature);
+        const pending = [left].concat(rights).filter((seq) => seq && !seq.feature && !isDemoGaitSequence(seq));
         if (pending.length > 0) {
           const pendingFrames = pending.reduce((sum, seq) => sum + ((seq && seq.frames) ? seq.frames.length : 0), 0);
           const confirmed = await showChargeNotice("sequence", pending.length, state.apiMode === "manual", pendingFrames);
           if (!confirmed) return;
         }
-        $("gaitCompare").disabled = true;
+        state.gait.comparing = true;
+        updateActionButtons();
         if (pending.length > 0) setStatus(t("extractingSelectedFeatures"));
         resetChargeBatchSummary("sequence");
         state.chargeBatchActive = true;
+        const failedItems = [];
         try {
-          const readyLeftItems = await ensureFeature(left, state.gait.seq1, { silentCharge: state.apiMode === "auto" });
+          let readyLeftItems = [];
+          try {
+            readyLeftItems = await ensureFeature(left, state.gait.seq1, { silentCharge: state.apiMode === "auto" });
+          } catch (error) {
+            left.status = "error";
+            left.errorMessage = error.message || t("apiFailedStatus");
+            failedItems.push({ label: t("video1"), message: left.errorMessage });
+            renderGaitSequences();
+          }
           const readyLeft = readyLeftItems && readyLeftItems[0];
           if (!readyLeft || !readyLeft.feature) throw new Error(t("invalidLeftSequence"));
           rights = state.gait.selected2.map((id) => state.gait.seq2.find((item) => item.id === id)).filter(Boolean);
-          for (const item of rights) {
+          for (let index = 0; index < rights.length; index += 1) {
+            const item = rights[index];
             let readyItems = [];
             try {
               readyItems = await ensureFeature(item, state.gait.seq2, { silentCharge: state.apiMode === "auto" });
             } catch (error) {
               item.status = "error";
               item.errorMessage = error.message || t("apiFailedStatus");
+              failedItems.push({ label: t("sequenceLabel", { index: index + 1 }), message: item.errorMessage });
               renderGaitSequences();
               continue;
             }
@@ -4322,9 +4781,13 @@
           state.chargeBatchActive = false;
         }
         renderGaitSequences();
-        const batchMessageHTML = chargeBatchResultMessageHTML();
-        if (batchMessageHTML) setStatusHTML(batchMessageHTML, "ok");
-        else setStatus("");
+        if (failedItems.length) {
+          setStatus(`有 ${failedItems.length} 个序列提特征失败。鼠标悬停到失败序列可查看原因。`, "error");
+        } else {
+          const batchMessageHTML = chargeBatchResultMessageHTML();
+          if (batchMessageHTML) setStatusHTML(batchMessageHTML, "ok");
+          else setStatus("");
+        }
       } catch (error) {
         const message = error.message || t("compareFailed");
         if (error.chargeMessageHTML) setChargeStatusHTML("sequence", error.chargeMessageHTML, "error");
@@ -4332,7 +4795,8 @@
         else setStatus(message, "error");
       } finally {
         state.chargeBatchActive = false;
-        $("gaitCompare").disabled = false;
+        state.gait.comparing = false;
+        updateActionButtons();
       }
     }
 
@@ -4353,29 +4817,41 @@
         }
       });
       $("poseVideoInput").addEventListener("change", () => {
+        if (state.pose.abortController) state.pose.abortController.abort();
         state.pose.file = updateFileLabel("poseVideoInput", "poseVideoLabel", t("uploadVideo"));
         state.examples.pose.selectedVideo = "";
         renderExampleVideos();
         clearPoseVideoState();
+        if (state.pose.file) {
+          extractPoseSequences().catch((error) => setPoseParseStatus(error.message || t("poseFailed"), "error"));
+        }
       });
       $("gaitVideo1Input").addEventListener("change", () => {
+        if (state.gait.abort1) state.gait.abort1.abort();
         state.gait.file1 = updateFileLabel("gaitVideo1Input", "gaitVideo1Label", t("uploadVideo1"));
         state.examples.gait.selectedVideo1 = "";
         renderExampleVideos();
         clearGaitVideoState("video1");
+        if (state.gait.file1) {
+          extractGaitVideo("video1").catch((error) => setStatus(error.message || t("gaitFailed"), "error"));
+        }
       });
       $("gaitVideo2Input").addEventListener("change", () => {
+        if (state.gait.abort2) state.gait.abort2.abort();
         state.gait.file2 = updateFileLabel("gaitVideo2Input", "gaitVideo2Label", t("uploadVideo2"));
         state.examples.gait.selectedVideo2 = "";
         renderExampleVideos();
         clearGaitVideoState("video2");
         readVideoDuration(state.gait.file2).then(setGaitVideo2Duration);
+        if (state.gait.file2) {
+          extractGaitVideo("video2").catch((error) => setStatus(error.message || t("gaitFailed"), "error"));
+        }
       });
       $("gaitRangeStart").addEventListener("change", applyGaitTimeRange);
       $("gaitRangeEnd").addEventListener("change", applyGaitTimeRange);
       $("locateRun").addEventListener("click", runLocate);
-      $("poseExtract").addEventListener("click", extractPoseSequences);
-      $("gaitExtract").addEventListener("click", extractGaitSequences);
+      $("poseExtract").addEventListener("click", extractSelectedPoseSequence);
+      $("gaitExtract").addEventListener("click", pauseGaitExtraction);
       $("gaitCompare").addEventListener("click", compareGait);
       $("gaitSelectAll").addEventListener("click", toggleGaitSelectAll);
       $("gaitSort").addEventListener("click", toggleGaitSort);
@@ -4420,11 +4896,12 @@
       $("chooseCacheDirInline").addEventListener("click", openSettingsModal);
       $("chooseCacheDir").addEventListener("click", () => chooseCacheDirectory().catch((error) => updateCacheStatus(error.message || t("cacheFailed"))));
       $("skipCacheDir").addEventListener("click", () => $("cacheModal").classList.add("hidden"));
-      $("closeNoticeModal").addEventListener("click", closeNoticeModal);
+      $("closeNoticeModal").addEventListener("click", () => closeNoticeModal(false));
+      $("noticeModalConfirm").addEventListener("click", () => closeNoticeModal(true));
       $("noticeModal").addEventListener("click", (event) => {
         if (event.target.id === "noticeModal") closeNoticeModal();
       });
-      ["settingFrameJump", "settingMinBoxWidth", "settingMinBoxHeight", "settingMinFrames", "settingKeepStatic"].forEach((id) => {
+      ["settingFrameJump", "settingMinBoxWidth", "settingMinBoxHeight", "settingMinFrames", "settingMaxFrames", "settingKeepStatic"].forEach((id) => {
         $(id).addEventListener("change", () => saveBrowserSettings().catch((error) => updateCacheStatus(error.message || t("cacheFailed"))));
       });
       $("sequenceFramePrev").addEventListener("click", () => stepSequenceFrame(-1));

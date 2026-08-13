@@ -58,8 +58,14 @@ without reloading the page.
 Files:
 
 - `index.html`: UI and API calls.
-- `persondet.js`: detector backend selection, JavaScript fallback detector, IoU
-  tracking, sequence filtering, and crop export.
+- `persondet.js`: detector backend selection, ONNX Runtime Web detector,
+  JavaScript fallback detector, IoU tracking, sequence filtering, and crop
+  export.
+- `gait_detect.onnx`: browser person detector model. The browser prefers
+  official `onnxruntime-web` WASM inference with this model.
+- `ort.wasm.min.js` / `ort-wasm-simd.wasm` / `ort-wasm.wasm`: local copy of
+  official `onnxruntime-web` 1.18.0 runtime files. They are served from the
+  same site instead of an external CDN.
 - `persondet_weights.js`: generated JavaScript fallback weights converted from
   the C++ demo weights.
 - `persondet_wasm_bindings.cpp`: C ABI wrapper for the C++ detector.
@@ -67,40 +73,39 @@ Files:
   `persondet_wasm.wasm` with Emscripten `-O3 -flto -msimd128`.
 - `persondet_wasm.js` / `persondet_wasm.wasm`: prebuilt WASM + SIMD detector
   produced by the build script when available.
+- `facedet_wasm_bindings.cpp`: C ABI wrapper for Shiqi Yu's
+  `libfacedetection`, returning face boxes and five landmarks.
+- `build_facedet_wasm.sh`: builds `facedet_wasm.js` and
+  `facedet_wasm.wasm` with Emscripten. The portal homepage uses these files for
+  face candidate detection before browser-side alignment and `/v1/features/face`.
 
 `/portal/demo-download?type=browser-pose&open=1` opens the standalone Gait Pose
 browser client inline. `/portal/demo-download?type=browser-gait&open=1` opens the
 standalone Gait Recognition browser client inline. The online `open=1` page
-embeds the WASM detector and `persondet.js`, but intentionally omits
+serves ONNX Runtime Web and the ONNX model from `/portal/browser-assets`,
+embeds the old C++ WASM detector as fallback, and intentionally omits
 `persondet_weights.js` so browsers do not parse the large JavaScript fallback
-weights when WASM is available. Without `open=1`, the same routes return
+weights when ONNX/WASM is available. Without `open=1`, the same routes return
 downloadable HTML attachments with `persondet.js`, `persondet_weights.js`, and
-the WASM files embedded for compatibility.
+the old detector WASM embedded for compatibility; if ORT/ONNX files are not next
+to the downloaded HTML, the page falls back to the embedded detector.
 
 Build the WASM + SIMD backend:
 
 ```bash
 cd examples/browser/client
 ./build_persondet_wasm.sh
+./build_facedet_wasm.sh
 ```
 
-The browser prefers WASM + SIMD when present and falls back to pure JavaScript
-when the WASM files are missing or unsupported. WASM uses the same C++ detector
-source as the native local preprocessing demo and does not use ONNX.
+The browser prefers ONNX Runtime Web + WASM when present, falls back to the
+native C++ detector compiled to WASM, and then falls back to pure JavaScript
+weights when the WASM files are missing or unsupported.
 
-When replacing the detector model, update the C++ `persondet_weights.cpp` first,
-then regenerate Python and browser JavaScript fallback weights:
-
-```bash
-python3 scripts/convert_persondet_weights.py \
-  examples/registered/cpp/local_video_to_sequence_demo/persondet_weights.cpp \
-  --python-out examples/registered/python/local_video_to_sequence_demo/persondet_weights.py \
-  --js-out examples/browser/client/persondet_weights.js
-
-python3 scripts/convert_persondet_weights.py \
-  examples/registered/cpp/local_video_to_sequence_demo/persondet_weights.cpp \
-  --python-out examples/anonymous/python/local_video_to_sequence_demo/persondet_weights.py
-```
+When replacing the primary detector model, replace `gait_detect.onnx` in the
+browser client and Python local video-to-sequence demo folders. The old
+`persondet_weights.js` file is only a browser fallback for environments where
+ONNX Runtime Web and native WASM are unavailable.
 
 The current detector defaults are `score_threshold = 0.35` and
 `nms_threshold = 0.50`.

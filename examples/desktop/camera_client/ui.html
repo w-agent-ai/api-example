@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>W-Agent Camera</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --panel: #fff;
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #d9dee7;
+      --soft: #eef2f7;
+      --dark: #111827;
+      --blue: #2563eb;
+      --green: #12805c;
+      --red: #c23333;
+      --shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 1180px;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 58px minmax(0, 1fr);
+    }
+
+    .app.locked {
+      display: none;
+    }
+
+    .login-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .login-screen.hidden {
+      display: none;
+    }
+
+    .login-card {
+      width: 420px;
+      display: grid;
+      gap: 16px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .login-title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 950;
+    }
+
+    .login-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      font-weight: 750;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
+      align-items: center;
+      gap: 22px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .brand {
+      font-size: 20px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      height: 100%;
+    }
+
+    .nav button {
+      height: 38px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 850;
+    }
+
+    .nav button.active {
+      background: var(--dark);
+      color: #fff;
+    }
+
+    .user {
+      position: relative;
+      justify-self: end;
+    }
+
+    .user-button {
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .avatar {
+      width: 24px;
+      height: 24px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 99px;
+      background: var(--dark);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .user-menu {
+      position: absolute;
+      right: 0;
+      top: 44px;
+      z-index: 20;
+      width: 210px;
+      display: none;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .user.open .user-menu {
+      display: grid;
+      gap: 4px;
+    }
+
+    .user-menu button {
+      height: 36px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+      padding: 0 10px;
+      font-weight: 800;
+    }
+
+    .user-menu button:hover {
+      background: var(--soft);
+    }
+
+    .content {
+      min-height: 0;
+      padding: 18px;
+    }
+
+    .page {
+      display: none;
+      min-height: calc(100vh - 94px);
+    }
+
+    .page.active {
+      display: grid;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .save-status {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      height: 36px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .btn.primary {
+      border-color: var(--dark);
+      background: var(--dark);
+      color: #fff;
+    }
+
+    .btn.danger {
+      color: var(--red);
+      border-color: rgba(194, 51, 51, 0.3);
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      padding: 0 10px;
+      outline: none;
+    }
+
+    .live-page {
+      grid-template-rows: minmax(0, 1fr);
+    }
+
+    .live-panel {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .live-camera-select {
+      width: 220px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      padding: 0 10px;
+      font-weight: 800;
+    }
+
+    .video-stage {
+      position: relative;
+      min-height: 0;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        #171b24;
+      background-size: 48px 48px;
+    }
+
+    .video-frame {
+      position: absolute;
+      inset: 26px;
+      border-radius: 8px;
+      background:
+        radial-gradient(circle at 48% 19%, rgba(255, 255, 255, 0.18) 0 18px, transparent 19px),
+        linear-gradient(90deg, transparent 0 44%, rgba(255, 255, 255, 0.18) 44% 56%, transparent 56%),
+        linear-gradient(145deg, rgba(37, 99, 235, 0.22), rgba(18, 128, 92, 0.16));
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .detect-box {
+      position: absolute;
+      left: 43%;
+      top: 21%;
+      width: 13%;
+      height: 53%;
+      border: 2px solid #22c55e;
+      border-radius: 4px;
+    }
+
+    .detect-label {
+      position: absolute;
+      left: -2px;
+      top: -30px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 9px;
+      border-radius: 4px;
+      background: #22c55e;
+      color: #052e1a;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .history-page {
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 14px;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: 180px 180px 180px 220px 120px;
+      gap: 12px;
+      align-items: end;
+      padding: 14px;
+    }
+
+    .score {
+      color: var(--green);
+      font-weight: 950;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #e9f7f1;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .capture-grid-wrap {
+      overflow: auto;
+    }
+
+    .capture-grid {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+      align-content: start;
+    }
+
+    .capture-card {
+      min-width: 0;
+    }
+
+    .capture-image {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 52% 24%, rgba(17, 24, 39, 0.68) 0 12px, transparent 13px),
+        linear-gradient(90deg, transparent 0 43%, rgba(17, 24, 39, 0.48) 43% 57%, transparent 57%),
+        linear-gradient(135deg, #dce6f4, #b8c7da);
+    }
+
+    .capture-check {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      z-index: 2;
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--dark);
+    }
+
+    .capture-actions {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      padding: 10px;
+      background: linear-gradient(transparent, rgba(17, 24, 39, 0.68));
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+
+    .capture-image:hover .capture-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .capture-actions .btn {
+      height: 30px;
+      padding: 0 10px;
+      border-color: rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.94);
+      font-size: 12px;
+    }
+
+    .capture-meta {
+      display: grid;
+      gap: 2px;
+      padding: 7px 25px 0;
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .capture-line {
+      min-height: 16px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .capture-name {
+      font-weight: 900;
+    }
+
+    .capture-time {
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .gallery-page {
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 14px;
+    }
+
+    .library-grid {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 12px;
+      align-content: start;
+    }
+
+    .person-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .person-image {
+      aspect-ratio: 16 / 10;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(17, 24, 39, 0.72) 0 14px, transparent 15px),
+        linear-gradient(90deg, transparent 0 42%, rgba(17, 24, 39, 0.52) 42% 58%, transparent 58%),
+        linear-gradient(145deg, #edf2f8, #c8d6e8);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .person-body {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+    }
+
+    .person-name {
+      font-weight: 900;
+    }
+
+    .person-meta {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .manage-page {
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 14px;
+    }
+
+    .form {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      align-content: start;
+    }
+
+    .hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .camera-list {
+      --source-columns: 54px minmax(160px, 1.1fr) 100px minmax(100px, 0.7fr) minmax(220px, 1.3fr) 100px 100px 100px 150px;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .source-header,
+    .camera-item {
+      display: grid;
+      grid-template-columns: var(--source-columns);
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+    }
+
+    .source-header {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .camera-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .camera-name {
+      font-weight: 900;
+      min-width: 0;
+    }
+
+    .camera-meta {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .source-count {
+      width: fit-content;
+      min-width: 40px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      color: var(--dark);
+      font-weight: 900;
+    }
+
+    .camera-item .actions {
+      justify-content: flex-start;
+      gap: 8px;
+    }
+
+    .camera-item .btn {
+      min-width: 58px;
+      padding: 0 10px;
+    }
+
+    .device-panel {
+      display: none;
+    }
+
+    .device-panel.active {
+      display: block;
+    }
+
+    .generated-actions {
+      display: none;
+    }
+
+    .generated-actions.active {
+      display: flex;
+    }
+
+    .settings-page {
+      grid-template-rows: minmax(0, 1fr);
+    }
+
+    .settings-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .settings-table th,
+    .settings-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 13px;
+    }
+
+    .settings-table th {
+      height: 42px;
+      color: var(--muted);
+      background: var(--soft);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .settings-table td:first-child {
+      width: 180px;
+      font-weight: 900;
+    }
+
+    .settings-table td:nth-child(2) {
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .settings-table td:last-child {
+      width: 360px;
+    }
+
+    .setting-input,
+    .setting-select {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      padding: 0 10px;
+      outline: none;
+    }
+
+    .setting-value-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .color-picker {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      width: fit-content;
+    }
+
+    .current-color {
+      width: 42px;
+      height: 32px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      cursor: pointer;
+    }
+
+    .current-color span {
+      width: 24px;
+      height: 20px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--current-color, #fff);
+    }
+
+    .color-popover {
+      position: absolute;
+      top: 38px;
+      left: 0;
+      z-index: 30;
+      display: none;
+      min-width: 284px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .color-picker.open .color-popover {
+      display: grid;
+      gap: 10px;
+    }
+
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 22px);
+      gap: 6px;
+      align-items: center;
+    }
+
+    .color-chip {
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--chip-color, #fff);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32);
+      cursor: pointer;
+    }
+
+    .color-chip.active {
+      outline: 2px solid var(--dark);
+      outline-offset: 2px;
+    }
+
+    .switch {
+      position: relative;
+      width: 46px;
+      height: 26px;
+      display: inline-block;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .switch span {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #cbd5e1;
+      transition: background 0.15s ease;
+    }
+
+    .switch span::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--panel);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+      transition: transform 0.15s ease;
+    }
+
+    .switch input:checked + span {
+      background: var(--dark);
+    }
+
+    .switch input:checked + span::after {
+      transform: translateX(20px);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      place-items: center;
+      background: rgba(17, 24, 39, 0.35);
+    }
+
+    .modal-backdrop.open {
+      display: grid;
+    }
+
+    .modal {
+      width: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+      overflow: hidden;
+    }
+
+    .modal-body {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div>
+        <h1 class="login-title">登录 W-Agent</h1>
+        <p class="login-subtitle">登录后才能查看实时抓拍、历史抓拍、底库和摄像头配置。客户端会按登录用户加载本机数据目录，并自动同步可用的 API Key。</p>
+      </div>
+      <p class="hint">已从本地缓存填充上次登录信息。</p>
+      <div class="field">
+        <label>账号</label>
+        <input value="user@example.com">
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" value="cached-password">
+      </div>
+      <button class="btn primary" type="button" id="loginButton">登录</button>
+      <p class="hint">退出登录后，本机历史抓拍和底库不会继续显示。</p>
+    </div>
+  </div>
+
+  <div class="app locked" id="appShell">
+    <header class="topbar">
+      <div class="brand">W-Agent</div>
+      <nav class="nav" aria-label="主导航">
+        <button class="active" data-page="live">实时抓拍</button>
+        <button data-page="history">历史抓拍</button>
+        <button data-page="library">底库管理</button>
+        <button data-page="devices">摄像头/视频管理</button>
+        <button data-page="settings">系统设置</button>
+      </nav>
+      <div class="user" id="userMenu">
+        <button class="user-button" type="button" id="userButton"><span class="avatar">W</span> user@example.com</button>
+        <div class="user-menu">
+          <button type="button" id="logoutButton">退出登录</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="page live-page active" data-page-panel="live">
+        <div class="panel live-panel">
+          <div class="panel-head">
+            <h1 class="panel-title">实时抓拍 · 大门摄像头</h1>
+            <div class="actions">
+              <select class="live-camera-select" aria-label="切换摄像头">
+                <option>大门摄像头</option>
+                <option>仓库入口</option>
+              </select>
+            </div>
+          </div>
+          <div class="video-stage">
+            <div class="video-frame">
+              <div class="detect-box">
+                <div class="detect-label">张三 · 86%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page history-page" data-page-panel="history">
+        <div class="panel">
+          <div class="filters">
+            <div class="field">
+              <label>开始时间</label>
+              <input value="2026-06-26 00:00">
+            </div>
+            <div class="field">
+              <label>结束时间</label>
+              <input value="2026-06-26 23:59">
+            </div>
+            <div class="field">
+              <label>姓名</label>
+              <input placeholder="全部">
+            </div>
+            <div class="field">
+              <label>来源</label>
+              <select id="historySourceFilter"><option>全部来源</option><option>大门摄像头</option><option>走廊摄像头</option><option>测试视频 1</option><option>测试视频 2</option></select>
+            </div>
+            <button class="btn primary">查询</button>
+          </div>
+        </div>
+        <div class="panel capture-grid-wrap">
+          <div class="capture-grid">
+            <article class="capture-card">
+              <div class="capture-image">
+                <input class="capture-check" type="checkbox" aria-label="选择抓拍">
+                <div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div>
+              </div>
+              <div class="capture-meta"><div class="capture-line"><span class="capture-name">张三</span><span class="score">86%</span></div><div class="capture-time">2026-06-26 18:22:10</div></div>
+            </article>
+            <article class="capture-card">
+              <div class="capture-image">
+                <input class="capture-check" type="checkbox" aria-label="选择抓拍">
+                <div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div>
+              </div>
+              <div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">52%</span></div><div class="capture-time">2026-06-26 18:21:43</div></div>
+            </article>
+            <article class="capture-card">
+              <div class="capture-image">
+                <input class="capture-check" type="checkbox" aria-label="选择抓拍">
+                <div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div>
+              </div>
+              <div class="capture-meta"><div class="capture-line"><span class="capture-name">李四</span><span class="score">91%</span></div><div class="capture-time">2026-06-26 18:19:08</div></div>
+            </article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">王五</span><span class="score">78%</span></div><div class="capture-time">2026-06-26 18:18:32</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">44%</span></div><div class="capture-time">2026-06-26 18:17:54</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">赵六</span><span class="score">82%</span></div><div class="capture-time">2026-06-26 18:16:11</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">63%</span></div><div class="capture-time">2026-06-26 18:15:48</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">张三</span><span class="score">88%</span></div><div class="capture-time">2026-06-26 18:14:09</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">李四</span><span class="score">74%</span></div><div class="capture-time">2026-06-26 18:13:44</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">39%</span></div><div class="capture-time">2026-06-26 18:12:20</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">张三</span><span class="score">90%</span></div><div class="capture-time">2026-06-26 18:11:03</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">57%</span></div><div class="capture-time">2026-06-26 18:10:51</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">王五</span><span class="score">81%</span></div><div class="capture-time">2026-06-26 18:09:27</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">48%</span></div><div class="capture-time">2026-06-26 18:08:35</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">赵六</span><span class="score">85%</span></div><div class="capture-time">2026-06-26 18:07:16</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">61%</span></div><div class="capture-time">2026-06-26 18:06:02</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">张三</span><span class="score">87%</span></div><div class="capture-time">2026-06-26 18:05:44</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">李四</span><span class="score">77%</span></div><div class="capture-time">2026-06-26 18:04:39</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">55%</span></div><div class="capture-time">2026-06-26 18:03:50</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">王五</span><span class="score">80%</span></div><div class="capture-time">2026-06-26 18:02:11</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">42%</span></div><div class="capture-time">2026-06-26 18:01:22</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">赵六</span><span class="score">89%</span></div><div class="capture-time">2026-06-26 18:00:48</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">36%</span></div><div class="capture-time">2026-06-26 17:59:31</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">张三</span><span class="score">84%</span></div><div class="capture-time">2026-06-26 17:58:10</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">李四</span><span class="score">73%</span></div><div class="capture-time">2026-06-26 17:57:52</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">46%</span></div><div class="capture-time">2026-06-26 17:56:34</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">王五</span><span class="score">79%</span></div><div class="capture-time">2026-06-26 17:55:47</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">58%</span></div><div class="capture-time">2026-06-26 17:54:23</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">赵六</span><span class="score">83%</span></div><div class="capture-time">2026-06-26 17:53:16</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name"></span><span class="score">51%</span></div><div class="capture-time">2026-06-26 17:52:08</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">张三</span><span class="score">90%</span></div><div class="capture-time">2026-06-26 17:51:43</div></div></article>
+            <article class="capture-card"><div class="capture-image"><input class="capture-check" type="checkbox" aria-label="选择抓拍"><div class="capture-actions"><button class="btn">搜索</button><button class="btn" data-add-library>添加到底库</button></div></div><div class="capture-meta"><div class="capture-line"><span class="capture-name">李四</span><span class="score">76%</span></div><div class="capture-time">2026-06-26 17:50:19</div></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="page gallery-page" data-page-panel="library">
+        <div class="panel">
+          <div class="panel-head">
+            <h1 class="panel-title">底库管理</h1>
+          </div>
+        </div>
+        <div class="panel library-grid">
+          <article class="person-card">
+            <div class="person-image"></div>
+            <div class="person-body">
+              <div class="person-name">张三</div>
+              <div class="person-meta">6 条抓拍 · 最近更新 18:22</div>
+              <div class="actions"><button class="btn">重命名</button><button class="btn danger">删除</button></div>
+            </div>
+          </article>
+          <article class="person-card">
+            <div class="person-image"></div>
+            <div class="person-body">
+              <div class="person-name">李四</div>
+              <div class="person-meta">3 条抓拍 · 最近更新 18:19</div>
+              <div class="actions"><button class="btn">重命名</button><button class="btn danger">删除</button></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page manage-page" data-page-panel="devices">
+        <div class="panel">
+          <div class="panel-head">
+            <h1 class="panel-title">摄像头/视频管理</h1>
+            <div class="actions">
+              <button class="btn" data-device-panel-button="camera">添加摄像头</button>
+              <button class="btn" data-device-panel-button="video">选择本地视频</button>
+            </div>
+          </div>
+          <div class="device-panel" data-device-panel="camera">
+            <div class="form">
+              <p class="hint">先扫描局域网 IP，选择一个摄像头 IP，再填写用户名、密码和品牌。信息确认后点击生成 RTSP，生成成功后再预览和添加。每个客户端最多添加 4 个摄像头。</p>
+              <div class="actions"><button class="btn" type="button">扫描 IP</button></div>
+              <div class="field"><label>选择 IP</label><select><option>192.168.1.64</option><option>192.168.1.78</option><option>192.168.1.93</option></select></div>
+              <div class="field"><label>摄像头品牌</label><select><option>海康</option><option>大华</option><option>宇视</option><option>其他</option></select></div>
+              <div class="field"><label>用户名</label><input value="admin"></div>
+              <div class="field"><label>密码</label><input type="password" placeholder="摄像头密码"></div>
+              <div class="field"><label>RTSP 地址</label><input value="rtsp://admin:******@192.168.1.64:554/Streaming/Channels/101"></div>
+              <div class="field"><label>摄像头名称</label><input placeholder="例如：大门摄像头"></div>
+              <div class="actions"><button class="btn primary" type="button" id="generateRtspButton">生成 RTSP</button></div>
+              <div class="actions generated-actions" id="generatedCameraActions"><button class="btn">预览</button><button class="btn primary">添加</button></div>
+            </div>
+          </div>
+          <div class="device-panel" data-device-panel="video">
+            <div class="form">
+              <p class="hint">选择本地视频后，软件会按摄像头流同样的逻辑解析、抓拍并与底库比对。</p>
+              <div class="field"><label>本地视频</label><input value="未选择文件"></div>
+              <div class="field"><label>视频名称</label><input placeholder="例如：测试视频 1"></div>
+              <div class="actions"><button class="btn">选择文件</button><button class="btn primary">开始解析</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h1 class="panel-title">摄像头/视频列表 · 摄像头 2/4</h1>
+          </div>
+          <div class="camera-list">
+            <div class="source-header">
+              <div>序号</div>
+              <div>名称</div>
+              <div>类型</div>
+              <div>品牌/来源</div>
+              <div>IP/文件</div>
+              <div>状态</div>
+              <div>实时 FPS</div>
+              <div>序列个数</div>
+              <div>操作</div>
+            </div>
+            <div class="camera-item">
+              <div class="camera-meta">1</div>
+              <div class="camera-name">大门摄像头</div>
+              <div class="camera-meta">摄像头</div>
+              <div class="camera-meta">海康</div>
+              <div class="camera-meta">192.168.1.64</div>
+              <div class="camera-meta">正在解析</div>
+              <div class="camera-meta">25.0</div>
+              <div class="camera-meta">-</div>
+              <div class="actions"><button class="btn">预览</button><button class="btn danger">停用</button></div>
+            </div>
+            <div class="camera-item">
+              <div class="camera-meta">2</div>
+              <div class="camera-name">走廊摄像头</div>
+              <div class="camera-meta">摄像头</div>
+              <div class="camera-meta">大华</div>
+              <div class="camera-meta">192.168.1.78</div>
+              <div class="camera-meta">已停用</div>
+              <div class="camera-meta">-</div>
+              <div class="camera-meta">-</div>
+              <div class="actions"><button class="btn">启用</button><button class="btn danger">删除</button></div>
+            </div>
+            <div class="camera-item">
+              <div class="camera-meta">3</div>
+              <div class="camera-name">测试视频 1</div>
+              <div class="camera-meta">视频</div>
+              <div class="camera-meta">本地文件</div>
+              <div class="camera-meta">test-entrance.mp4</div>
+              <div class="camera-meta">已解析</div>
+              <div class="camera-meta">-</div>
+              <button class="source-count" type="button" data-history-source="测试视频 1">128</button>
+              <div class="actions"><button class="btn">查看</button><button class="btn danger">删除</button></div>
+            </div>
+            <div class="camera-item">
+              <div class="camera-meta">4</div>
+              <div class="camera-name">测试视频 2</div>
+              <div class="camera-meta">视频</div>
+              <div class="camera-meta">本地文件</div>
+              <div class="camera-meta">warehouse-20260626.mp4</div>
+              <div class="camera-meta">解析中</div>
+              <div class="camera-meta">18.5</div>
+              <button class="source-count" type="button" data-history-source="测试视频 2">36</button>
+              <div class="actions"><button class="btn">查看</button><button class="btn danger">停止</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page settings-page" data-page-panel="settings">
+        <div class="panel">
+          <div class="panel-head">
+            <h1 class="panel-title">系统设置</h1>
+            <div class="save-status" id="settingsSaveStatus">已自动保存</div>
+          </div>
+          <table class="settings-table">
+            <thead><tr><th>名称</th><th>说明</th><th>值</th></tr></thead>
+            <tbody>
+              <tr><td>API Key</td><td>登录后从 W-Agent 账号同步；只有一个时自动选择，多个时手动选择</td><td><select class="setting-select"><option>默认 API Key · wag_live_****8f3a</option><option>测试 API Key · wag_live_****21bc</option></select></td></tr>
+              <tr><td>数据目录</td><td>选择 W-Agent 数据目录；可以选择本软件生成的历史目录来加载已有抓拍和底库</td><td><div class="setting-value-row"><input class="setting-input" value="./WAgentData" readonly><button class="btn">选择文件夹</button></div></td></tr>
+              <tr><td>识别阈值</td><td>最高相似度大于该值时识别为底库目标；失焦或按 Enter 后生效</td><td><input class="setting-input" id="thresholdInput" value="0.7"></td></tr>
+              <tr><td>抓拍视频带框</td><td>保存抓拍视频时是否把检测框绘制到画面里</td><td><label class="switch"><input type="checkbox" checked><span></span></label></td></tr>
+              <tr><td>背景颜色</td><td>设置所有普通背景颜色，包括页面、面板、卡片和输入框背景</td><td><div class="color-picker"><button class="current-color" type="button" data-toggle-color-picker style="--current-color: #f5f6f8"><span></span></button><div class="color-popover"><div class="color-grid"><button class="color-chip" type="button" data-color-target="background" data-color-value="#ffffff" style="--chip-color: #ffffff" aria-label="#ffffff"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#f2f2f2" style="--chip-color: #f2f2f2" aria-label="#f2f2f2"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#d9d9d9" style="--chip-color: #d9d9d9" aria-label="#d9d9d9"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#bfbfbf" style="--chip-color: #bfbfbf" aria-label="#bfbfbf"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#808080" style="--chip-color: #808080" aria-label="#808080"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#595959" style="--chip-color: #595959" aria-label="#595959"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#404040" style="--chip-color: #404040" aria-label="#404040"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#262626" style="--chip-color: #262626" aria-label="#262626"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#0d0d0d" style="--chip-color: #0d0d0d" aria-label="#0d0d0d"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#000000" style="--chip-color: #000000" aria-label="#000000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#fbe5d6" style="--chip-color: #fbe5d6" aria-label="#fbe5d6"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#f4b183" style="--chip-color: #f4b183" aria-label="#f4b183"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ed7d31" style="--chip-color: #ed7d31" aria-label="#ed7d31"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#c55a11" style="--chip-color: #c55a11" aria-label="#c55a11"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#833c0c" style="--chip-color: #833c0c" aria-label="#833c0c"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#fff2cc" style="--chip-color: #fff2cc" aria-label="#fff2cc"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ffd966" style="--chip-color: #ffd966" aria-label="#ffd966"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ffc000" style="--chip-color: #ffc000" aria-label="#ffc000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#bf9000" style="--chip-color: #bf9000" aria-label="#bf9000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#7f6000" style="--chip-color: #7f6000" aria-label="#7f6000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#e2f0d9" style="--chip-color: #e2f0d9" aria-label="#e2f0d9"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#a9d18e" style="--chip-color: #a9d18e" aria-label="#a9d18e"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#70ad47" style="--chip-color: #70ad47" aria-label="#70ad47"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#548235" style="--chip-color: #548235" aria-label="#548235"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#375623" style="--chip-color: #375623" aria-label="#375623"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#d9ead3" style="--chip-color: #d9ead3" aria-label="#d9ead3"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#93c47d" style="--chip-color: #93c47d" aria-label="#93c47d"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#6aa84f" style="--chip-color: #6aa84f" aria-label="#6aa84f"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#38761d" style="--chip-color: #38761d" aria-label="#38761d"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#274e13" style="--chip-color: #274e13" aria-label="#274e13"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#d9eaf7" style="--chip-color: #d9eaf7" aria-label="#d9eaf7"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#9dc3e6" style="--chip-color: #9dc3e6" aria-label="#9dc3e6"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#5b9bd5" style="--chip-color: #5b9bd5" aria-label="#5b9bd5"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#2f75b5" style="--chip-color: #2f75b5" aria-label="#2f75b5"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#1f4e79" style="--chip-color: #1f4e79" aria-label="#1f4e79"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ddebf7" style="--chip-color: #ddebf7" aria-label="#ddebf7"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#bdd7ee" style="--chip-color: #bdd7ee" aria-label="#bdd7ee"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#2e75b6" style="--chip-color: #2e75b6" aria-label="#2e75b6"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#1f4e79" style="--chip-color: #1f4e79" aria-label="#1f4e79"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#17365d" style="--chip-color: #17365d" aria-label="#17365d"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#e4dfec" style="--chip-color: #e4dfec" aria-label="#e4dfec"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#b4a7d6" style="--chip-color: #b4a7d6" aria-label="#b4a7d6"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#8064a2" style="--chip-color: #8064a2" aria-label="#8064a2"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#5f497a" style="--chip-color: #5f497a" aria-label="#5f497a"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#3f3151" style="--chip-color: #3f3151" aria-label="#3f3151"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#f4cccc" style="--chip-color: #f4cccc" aria-label="#f4cccc"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#e06666" style="--chip-color: #e06666" aria-label="#e06666"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#cc0000" style="--chip-color: #cc0000" aria-label="#cc0000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#990000" style="--chip-color: #990000" aria-label="#990000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#660000" style="--chip-color: #660000" aria-label="#660000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#eadcf8" style="--chip-color: #eadcf8" aria-label="#eadcf8"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#c27ba0" style="--chip-color: #c27ba0" aria-label="#c27ba0"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#a64d79" style="--chip-color: #a64d79" aria-label="#a64d79"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#741b47" style="--chip-color: #741b47" aria-label="#741b47"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#4c1130" style="--chip-color: #4c1130" aria-label="#4c1130"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ff0000" style="--chip-color: #ff0000" aria-label="#ff0000"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ff9900" style="--chip-color: #ff9900" aria-label="#ff9900"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ffff00" style="--chip-color: #ffff00" aria-label="#ffff00"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#00b050" style="--chip-color: #00b050" aria-label="#00b050"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#00b0f0" style="--chip-color: #00b0f0" aria-label="#00b0f0"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#0070c0" style="--chip-color: #0070c0" aria-label="#0070c0"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#002060" style="--chip-color: #002060" aria-label="#002060"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#7030a0" style="--chip-color: #7030a0" aria-label="#7030a0"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#ff00ff" style="--chip-color: #ff00ff" aria-label="#ff00ff"></button><button class="color-chip" type="button" data-color-target="background" data-color-value="#00ffff" style="--chip-color: #00ffff" aria-label="#00ffff"></button></div></div></div></td></tr>
+              <tr><td>文字颜色</td><td>设置普通文字颜色，不影响相似度、删除、停用、停止等特殊文字颜色</td><td><div class="color-picker"><button class="current-color" type="button" data-toggle-color-picker style="--current-color: #111827"><span></span></button><div class="color-popover"><div class="color-grid"><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ffffff" style="--chip-color: #ffffff" aria-label="#ffffff"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#f2f2f2" style="--chip-color: #f2f2f2" aria-label="#f2f2f2"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#d9d9d9" style="--chip-color: #d9d9d9" aria-label="#d9d9d9"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#bfbfbf" style="--chip-color: #bfbfbf" aria-label="#bfbfbf"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#808080" style="--chip-color: #808080" aria-label="#808080"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#595959" style="--chip-color: #595959" aria-label="#595959"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#404040" style="--chip-color: #404040" aria-label="#404040"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#262626" style="--chip-color: #262626" aria-label="#262626"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#0d0d0d" style="--chip-color: #0d0d0d" aria-label="#0d0d0d"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#000000" style="--chip-color: #000000" aria-label="#000000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#fbe5d6" style="--chip-color: #fbe5d6" aria-label="#fbe5d6"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#f4b183" style="--chip-color: #f4b183" aria-label="#f4b183"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ed7d31" style="--chip-color: #ed7d31" aria-label="#ed7d31"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#c55a11" style="--chip-color: #c55a11" aria-label="#c55a11"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#833c0c" style="--chip-color: #833c0c" aria-label="#833c0c"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#fff2cc" style="--chip-color: #fff2cc" aria-label="#fff2cc"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ffd966" style="--chip-color: #ffd966" aria-label="#ffd966"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ffc000" style="--chip-color: #ffc000" aria-label="#ffc000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#bf9000" style="--chip-color: #bf9000" aria-label="#bf9000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#7f6000" style="--chip-color: #7f6000" aria-label="#7f6000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#e2f0d9" style="--chip-color: #e2f0d9" aria-label="#e2f0d9"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#a9d18e" style="--chip-color: #a9d18e" aria-label="#a9d18e"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#70ad47" style="--chip-color: #70ad47" aria-label="#70ad47"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#548235" style="--chip-color: #548235" aria-label="#548235"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#375623" style="--chip-color: #375623" aria-label="#375623"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#d9ead3" style="--chip-color: #d9ead3" aria-label="#d9ead3"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#93c47d" style="--chip-color: #93c47d" aria-label="#93c47d"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#6aa84f" style="--chip-color: #6aa84f" aria-label="#6aa84f"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#38761d" style="--chip-color: #38761d" aria-label="#38761d"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#274e13" style="--chip-color: #274e13" aria-label="#274e13"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#d9eaf7" style="--chip-color: #d9eaf7" aria-label="#d9eaf7"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#9dc3e6" style="--chip-color: #9dc3e6" aria-label="#9dc3e6"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#5b9bd5" style="--chip-color: #5b9bd5" aria-label="#5b9bd5"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#2f75b5" style="--chip-color: #2f75b5" aria-label="#2f75b5"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#1f4e79" style="--chip-color: #1f4e79" aria-label="#1f4e79"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ddebf7" style="--chip-color: #ddebf7" aria-label="#ddebf7"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#bdd7ee" style="--chip-color: #bdd7ee" aria-label="#bdd7ee"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#2e75b6" style="--chip-color: #2e75b6" aria-label="#2e75b6"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#1f4e79" style="--chip-color: #1f4e79" aria-label="#1f4e79"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#17365d" style="--chip-color: #17365d" aria-label="#17365d"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#e4dfec" style="--chip-color: #e4dfec" aria-label="#e4dfec"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#b4a7d6" style="--chip-color: #b4a7d6" aria-label="#b4a7d6"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#8064a2" style="--chip-color: #8064a2" aria-label="#8064a2"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#5f497a" style="--chip-color: #5f497a" aria-label="#5f497a"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#3f3151" style="--chip-color: #3f3151" aria-label="#3f3151"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#f4cccc" style="--chip-color: #f4cccc" aria-label="#f4cccc"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#e06666" style="--chip-color: #e06666" aria-label="#e06666"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#cc0000" style="--chip-color: #cc0000" aria-label="#cc0000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#990000" style="--chip-color: #990000" aria-label="#990000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#660000" style="--chip-color: #660000" aria-label="#660000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#eadcf8" style="--chip-color: #eadcf8" aria-label="#eadcf8"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#c27ba0" style="--chip-color: #c27ba0" aria-label="#c27ba0"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#a64d79" style="--chip-color: #a64d79" aria-label="#a64d79"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#741b47" style="--chip-color: #741b47" aria-label="#741b47"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#4c1130" style="--chip-color: #4c1130" aria-label="#4c1130"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ff0000" style="--chip-color: #ff0000" aria-label="#ff0000"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ff9900" style="--chip-color: #ff9900" aria-label="#ff9900"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ffff00" style="--chip-color: #ffff00" aria-label="#ffff00"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#00b050" style="--chip-color: #00b050" aria-label="#00b050"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#00b0f0" style="--chip-color: #00b0f0" aria-label="#00b0f0"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#0070c0" style="--chip-color: #0070c0" aria-label="#0070c0"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#002060" style="--chip-color: #002060" aria-label="#002060"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#7030a0" style="--chip-color: #7030a0" aria-label="#7030a0"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#ff00ff" style="--chip-color: #ff00ff" aria-label="#ff00ff"></button><button class="color-chip" type="button" data-color-target="--ink" data-color-value="#00ffff" style="--chip-color: #00ffff" aria-label="#00ffff"></button></div></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="libraryModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="libraryModalTitle">
+      <div class="panel-head">
+        <h2 class="panel-title" id="libraryModalTitle">加入底库</h2>
+        <button class="btn" type="button" id="closeLibraryModal">关闭</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label>选择姓名</label>
+          <select>
+            <option>张三</option>
+            <option>李四</option>
+            <option>王五</option>
+            <option>赵六</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>新增姓名</label>
+          <input placeholder="不选择已有姓名时，在这里输入新姓名">
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="cancelLibraryModal">取消</button>
+          <button class="btn primary" type="button">确认加入</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const loginScreen = document.getElementById("loginScreen");
+    const appShell = document.getElementById("appShell");
+    document.getElementById("loginButton").addEventListener("click", () => {
+      loginScreen.classList.add("hidden");
+      appShell.classList.remove("locked");
+    });
+
+    const pages = Array.from(document.querySelectorAll("[data-page-panel]"));
+    const navButtons = Array.from(document.querySelectorAll("[data-page]"));
+    function showPage(page) {
+      navButtons.forEach((item) => item.classList.toggle("active", item.getAttribute("data-page") === page));
+      pages.forEach((panel) => panel.classList.toggle("active", panel.getAttribute("data-page-panel") === page));
+    }
+    navButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        showPage(button.getAttribute("data-page"));
+      });
+    });
+
+    document.querySelectorAll("[data-history-source]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const source = button.getAttribute("data-history-source");
+        const filter = document.getElementById("historySourceFilter");
+        if (filter) filter.value = source;
+        showPage("history");
+      });
+    });
+
+    const userMenu = document.getElementById("userMenu");
+    const userButton = document.getElementById("userButton");
+    userButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      userMenu.classList.toggle("open");
+    });
+
+    const settingsSaveStatus = document.getElementById("settingsSaveStatus");
+    function setSaveStatus(text) {
+      if (settingsSaveStatus) settingsSaveStatus.textContent = text;
+    }
+    function markSaved() {
+      setSaveStatus("已自动保存");
+    }
+
+    function applyColor(target, value, activeButton) {
+      if (!/^#[0-9a-fA-F]{6}$/.test(value)) return;
+      if (target === "background") {
+        document.documentElement.style.setProperty("--bg", value);
+        document.documentElement.style.setProperty("--panel", value);
+        document.documentElement.style.setProperty("--soft", value);
+      } else {
+        document.documentElement.style.setProperty(target, value);
+      }
+      document.querySelectorAll('[data-color-target="' + target + '"]').forEach((item) => item.classList.toggle("active", item === activeButton));
+      const picker = activeButton.closest(".color-picker");
+      if (picker) {
+        const current = picker.querySelector("[data-toggle-color-picker]");
+        if (current) current.style.setProperty("--current-color", value);
+        picker.classList.remove("open");
+      }
+      markSaved();
+    }
+
+    const thresholdInput = document.getElementById("thresholdInput");
+    let lastValidThreshold = thresholdInput ? thresholdInput.value : "0.7";
+    function applyThreshold() {
+      if (!thresholdInput) return;
+      const raw = thresholdInput.value.trim();
+      const value = Number(raw);
+      if (!raw || Number.isNaN(value) || value < 0 || value > 1) {
+        thresholdInput.value = lastValidThreshold;
+        setSaveStatus("阈值必须在 0 到 1 之间");
+        return;
+      }
+      lastValidThreshold = String(value);
+      thresholdInput.value = lastValidThreshold;
+      markSaved();
+    }
+    if (thresholdInput) {
+      thresholdInput.addEventListener("input", () => setSaveStatus("阈值待应用"));
+      thresholdInput.addEventListener("blur", applyThreshold);
+      thresholdInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          applyThreshold();
+          thresholdInput.blur();
+        }
+      });
+    }
+
+    document.querySelectorAll("[data-toggle-color-picker]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const picker = button.closest(".color-picker");
+        document.querySelectorAll(".color-picker.open").forEach((item) => {
+          if (item !== picker) item.classList.remove("open");
+        });
+        picker.classList.toggle("open");
+      });
+    });
+    document.querySelectorAll("[data-color-value]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyColor(button.getAttribute("data-color-target"), button.getAttribute("data-color-value"), button);
+      });
+    });
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".color-picker")) {
+        document.querySelectorAll(".color-picker.open").forEach((item) => item.classList.remove("open"));
+      }
+    });
+    document.addEventListener("click", () => userMenu.classList.remove("open"));
+    document.getElementById("logoutButton").addEventListener("click", () => {
+      appShell.classList.add("locked");
+      loginScreen.classList.remove("hidden");
+      userMenu.classList.remove("open");
+    });
+
+    const libraryModal = document.getElementById("libraryModal");
+    const closeLibraryModal = () => libraryModal.classList.remove("open");
+    document.querySelectorAll("[data-add-library]").forEach((button) => {
+      button.addEventListener("click", () => libraryModal.classList.add("open"));
+    });
+    document.getElementById("closeLibraryModal").addEventListener("click", closeLibraryModal);
+    document.getElementById("cancelLibraryModal").addEventListener("click", closeLibraryModal);
+    libraryModal.addEventListener("click", (event) => {
+      if (event.target === libraryModal) closeLibraryModal();
+    });
+
+    const devicePanelButtons = Array.from(document.querySelectorAll("[data-device-panel-button]"));
+    const devicePanels = Array.from(document.querySelectorAll("[data-device-panel]"));
+    devicePanelButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const panelName = button.getAttribute("data-device-panel-button");
+        const alreadyOpen = button.classList.contains("primary");
+        devicePanelButtons.forEach((item) => item.classList.remove("primary"));
+        devicePanels.forEach((panel) => panel.classList.remove("active"));
+        if (!alreadyOpen) {
+          button.classList.add("primary");
+          devicePanels.forEach((panel) => panel.classList.toggle("active", panel.getAttribute("data-device-panel") === panelName));
+        }
+      });
+    });
+
+    const generateRtspButton = document.getElementById("generateRtspButton");
+    const generatedCameraActions = document.getElementById("generatedCameraActions");
+    generateRtspButton.addEventListener("click", () => {
+      generatedCameraActions.classList.add("active");
+    });
+  </script>
+</body>
+</html>

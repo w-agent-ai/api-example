@@ -15,12 +15,13 @@
 #include <nlohmann/json.hpp>
 
 // Public API endpoint. Change this to your own deployment if needed.
-static const std::string kBaseURL = "http://116.198.210.0:3005";
+static const std::string kBaseURL = "https://www.w-agent.cn/api";
 
 // Registered-user API Key. It is sent as: Authorization: Bearer <api_key>.
-static const std::string kAPIKey = "";
+static const std::string kAPIKey = "gak_your_api_key";
 
 // A video file is uploaded once, then parsed asynchronously by the server.
+// Change this value, or pass a video path as the first command-line argument.
 static const std::string kVideoPath = "../../../video/0000.avi";
 
 struct HTTPResponse {
@@ -117,9 +118,9 @@ HTTPResponse requestJSON(const std::string& method, const std::string& path, con
   std::string url = kBaseURL + path;
   std::string payloadText = payload ? payload->dump() : "";
   struct curl_slist* headers = nullptr;
-  std::string apiKey = std::getenv("GAIT_REGISTERED_API_KEY") ? std::getenv("GAIT_REGISTERED_API_KEY") : kAPIKey;
-  if (apiKey.empty()) {
-    throw std::runtime_error("export GAIT_REGISTERED_API_KEY before running this demo");
+  std::string apiKey = kAPIKey;
+  if (apiKey.empty() || apiKey == "gak_your_api_key") {
+    throw std::runtime_error("edit kAPIKey in video_demo/main.cpp before running this demo");
   }
   std::string auth = "Authorization: Bearer " + apiKey;
   headers = curl_slist_append(headers, "Accept: application/json");
@@ -197,24 +198,25 @@ void uploadFile(const std::string& uploadPath, const std::string& filename) {
   }
 }
 
-int main() {
+int main(int argc, char** argv) {
   try {
     curl_global_init(CURL_GLOBAL_DEFAULT);
+    std::string videoPath = argc > 1 ? argv[1] : kVideoPath;
 
     // Step 1: create a video task with filename, content type and file size.
     // The server returns an upload_url for the video binary.
-    std::string name = fileName(kVideoPath);
+    std::string name = fileName(videoPath);
     nlohmann::json createPayload = {
         {"filename", name},
         {"content_type", contentTypeFor(name)},
-        {"size_bytes", fileSize(kVideoPath)},
+        {"size_bytes", fileSize(videoPath)},
     };
     nlohmann::json created = nlohmann::json::parse(requestJSON("POST", "/v1/videos", &createPayload).body);
     std::string taskID = created.at("task_id").get<std::string>();
 
     // Step 2: upload the whole video file, then notify the server that upload is
     // complete. Registered video parsing is asynchronous.
-    uploadFile(created.at("upload_url").get<std::string>(), kVideoPath);
+    uploadFile(created.at("upload_url").get<std::string>(), videoPath);
     nlohmann::json emptyPayload = nlohmann::json::object();
     requestJSON("POST", "/v1/videos/" + taskID + "/complete", &emptyPayload);
 

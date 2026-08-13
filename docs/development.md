@@ -296,18 +296,20 @@ worker 进程的边界：
 
 核心规则：
 
-- 视频一期：按视频帧数
-- 视频二期：按序列个数 + 总序列帧数
 - 序列单次：注册用户按输出序列个数固定计费，输出为空按 1 个序列计费；匿名 x402 按输入序列个数计费
 - Gait Pose 单次：按上传序列个数，后台按人民币分每序列配置，默认 1 分/序列
-- 注册用户序列和视频提特征另有每用户每月上限，按实际成功提取出步态特征的输出序列数计数；默认 100000，可在后台“注册用户策略”配置，`0` 表示不限制
+- 人脸识别单次：`POST /v1/features/face` 输入一张矫正后人脸图，按 `face_per_k_frames` 计费，默认 100 分/千帧，单张向上取整到 1 分
+- ReID识别单次：`POST /v1/features/reid` 输入一张人体图，按 `reid_per_k_frames` 计费，默认 100 分/千帧，单张向上取整到 1 分
+- 注册用户序列提特征另有每用户每月上限，按实际成功提取出步态特征的输出序列数计数；默认 100000，可在后台“注册用户策略”配置，`0` 表示不限制
+- 官网首页人脸体验依赖 `examples/browser/client/facedet_wasm.js` 和 `facedet_wasm.wasm`；如修改 `examples/registered/cpp/face_feature_demo/third_party/libfacedetection/src`，需先 `source /opt/emsdk/emsdk_env.sh`，再运行 `examples/browser/client/build_facedet_wasm.sh` 重建 WASM。首页人脸检测最长边按 1280 缩放并在浏览器 Worker 中运行；ReID 人体检测最长边按 640 缩放并优先在 Worker 中运行。
 
 对应运行配置字段：
 
-- `video_per_k_frames`
 - `sequence_per_k_frames`
 - `sequence_per_sequence`
 - `gait_pose_per_sequence`
+- `face_per_k_frames`
+- `reid_per_k_frames`
 - `currency`
 - `cny_usd_exchange_rate`
 - `eurc_usd_exchange_rate`
@@ -322,11 +324,11 @@ worker 进程的边界：
 - 包月 CNY 额度
 - 自动扣费
 
-账户注册成功后只创建用户、默认 CNY 钱包和默认 API Key，不再立即发放赠送余额。用户首次普通充值到账后，后端按 `runtime:account.signup_bonus_amount` 给 CNY 充值余额发放首充赠送额度，默认 5 元；该字段名保留历史命名，业务语义为首充赠送。赠送只对普通余额充值触发一次，套餐购买订单不触发；0 表示不赠送。注册用户创建序列/视频任务时会先检查是否有可用 CNY 余额以及是否已经达到月度提特征上限，余额不足或限额已满时不会分配上传地址。
+账户注册成功后只创建用户、默认 CNY 钱包和默认 API Key，不再立即发放赠送余额。用户首次普通充值到账后，后端按 `runtime:account.signup_bonus_amount` 给 CNY 充值余额发放首充赠送额度，默认 5 元；该字段名保留历史命名，业务语义为首充赠送。赠送只对普通余额充值触发一次，套餐购买订单不触发；0 表示不赠送。注册用户创建序列任务时会先检查是否有可用 CNY 余额以及是否已经达到月度提特征上限，余额不足或限额已满时不会分配上传地址。
 
 用户登录用户中心时，`/v1/me` 会返回 `has_settled_deposit`、`needs_first_deposit_prompt` 和 `first_deposit_bonus_amount`。如果用户还没有完成首次普通充值，前端会在本次登录会话中弹窗提示“完成首次充值，将赠送对应金额”，并提供“忽略”和“去充值”两个按钮；退出后再次登录或刷新重新进入时仍会再次提醒，直到有普通充值到账记录。
 
-注册用户序列解析和视频解析返回结果前，会对 512 维步态特征应用该用户绑定的 512x512 正交旋转矩阵。数据库只保存用户的 `gait_rotation_seed`，服务端按 seed 确定性生成并缓存矩阵；非 512 维兼容测试特征不旋转。
+注册用户序列解析返回结果前，会对 512 维步态特征应用该用户绑定的 512x512 正交旋转矩阵。数据库只保存用户的 `gait_rotation_seed`，服务端按 seed 确定性生成并缓存矩阵；非 512 维兼容测试特征不旋转。
 
 包月套餐购买与自动续费：
 
@@ -454,21 +456,22 @@ worker 进程的边界：
 
 用户门户职责：
 
-- 未登录时展示可试玩首页、产品能力、API 接入、Agent 接入、计费方式和 Demo 下载。
-- 首页试玩使用单行控件选择能力、上传文件、填写文字需求并发起免注册试用。图搜万物提示词示例为“猫、公交车、穿红衣服的人”，英文为 `cat, bus, person in red`；单文件图搜万物只显示文件名，多文件能力显示首个文件名和数量。
+- 未登录时展示可试玩首页、产品能力、API 接入、Agent 接入、计费方式和资源下载。
+- 首页试玩按图搜万物、人体2D/3D关节点、步态识别、人脸识别、ReID识别展示能力。图搜万物上传图片并输入目标文本后发起试用；人体关节点和步态识别打开对应浏览器客户端，客户端内同时支持示例视频和用户本地视频；人脸识别和 ReID识别上传图片1/图片2，在浏览器侧检测候选目标，点击画面候选框或候选卡片选择后调用单图特征接口比对。
+- 首页示例素材放在 `/opt/gaitagent/portal/examples/`，通过 `/portal/examples/<filename>` 访问。替换示例图片或视频不需要重新编译；替换浏览器检测 WASM 或入口 HTML 需要重新构建并重启 `gait-api`。
 - 通过邮箱和密码注册/登录。
 - 注册页包含推荐码输入框；有效推荐码绑定代理商，无效推荐码在用户确认后按空推荐码处理。
 - 登录后管理余额、充值、API Key、使用记录。
 - API Key 表展示完整 key、状态和使用记录入口，并支持复制、暂停、恢复、删除。
-- 使用记录按分页和条件过滤展示，金额按账户币种显示为正数；API Key 使用记录弹窗展示按天、类型聚合的使用汇总，按当前 API Key、日期范围和类型从 `daily_api_key_usage_summary` 查询，底部显示当前筛选条件下的累计金额，导出文件也是日汇总。单次时间跨度限制为不超过半年；计费说明按语言展示人民币或换算后的美元价格。
-- 登录后仍保留功能说明与 Demo 下载，方便用户集成。
+- 使用记录按分页和条件过滤展示，金额按账户币种显示为正数；API Key 使用记录弹窗展示按天、类型聚合的使用汇总，按当前 API Key、日期范围和类型从 `daily_api_key_usage_summary` 查询，底部显示当前筛选条件下的累计金额。导出文件按当前 API Key、日期范围和类型从 `account_wallet_ledger` 导出明细流水，按时间由近到远排列，不导出日汇总。单次时间跨度限制为不超过半年；计费说明按语言展示人民币或换算后的美元价格。
+- 登录后仍保留功能说明与资源下载，方便用户集成。
 - 登录前后顶部导航必须保持同一坐标；当前实现把左侧导航 fixed 到视口，修改顶部模板时不要改回依赖父容器 grid/absolute 的定位。
 - 匿名 Agent 与 x402 路线说明归入 Agent 接入页面，不再维护独立支付方式门户页。
 
 管理后台职责：
 
 - 看板：用户数、活跃用户、收入、支出和业务量。运营看板图表展示每日/每周/每月业务量、每日确认收入、活跃用户数，不展示区间累计收入；图表鼠标滚轮不触发缩放，避免滚动页面时误操作。
-- 用户管理：用户状态、用户 ID、邮箱、手机号、钱包、充值、后台补款、使用记录。列表和导出都应保留用户 ID 与手机号；搜索应覆盖邮箱、手机号和用户 ID，方便排查手机号注册用户。代理商功能上线后，用户列表和导出还必须包含推荐码、代理商姓名、代理商手机号或邮箱。用户主数据、钱包、API Key 和订阅是热数据，但管理列表必须服务端分页和服务端搜索，前端每页只解析当前页数据，不能一次返回几十万用户。
+- 用户管理：用户状态、用户 ID、邮箱、手机号、钱包、充值、后台补款、后台扣款、使用记录。列表和导出都应保留用户 ID 与手机号，并在累计充值后展示累计补款、累计扣款；累计扣款只统计后台扣款流水，不替代累计消费。搜索应覆盖邮箱、手机号和用户 ID，方便排查手机号注册用户。用户详情的账户流水查询按指定日期范围从后端加载全部明细，并支持导出 CSV；账户变动记录展示扣费方式，并分别展示套餐余额和充值余额。代理商功能上线后，用户列表和导出还必须包含推荐码、代理商姓名、代理商手机号或邮箱。用户主数据、钱包、API Key 和订阅是热数据，但管理列表必须服务端分页和服务端搜索，前端每页只解析当前页数据，不能一次返回几十万用户。
 - 财务管理：收入/支出总览、充值余额流水、套餐流水、收入记录、充值记录、匿名消费记录；充值不直接算收入，收入按套餐购买、充值余额消费和匿名调用分开展示，支出当前展示代理商费用。后台主要表格需要展示序号列，序号按当前筛选结果和分页位置连续计算。财务页只在主接口返回 summary，充值余额流水、套餐流水、收入记录、匿名消费记录和充值记录都使用独立分页接口；筛选和翻页必须重新请求后端，不能把多类流水一次性返回给浏览器后本地分页。
 - 营收报表：周报、月报、年报邮件除资金流入、确认收入和充值余额外，也展示支出和代理商费用；该费用是预计应付佣金，不代表系统已自动打款。
 - 代理商管理：超级管理员创建、编辑、停用代理商账号，配置 4 位代理编号和分成比例；列表展示客户数量、当月收入、累计收入和启停记录；代理商登录后只能查看自己发展的客户、客户充值明细、充值汇总和两卡片摘要（客户、收入）。代理商看板的客户列表和充值明细分页展示并带序号列，充值明细必须包含用户 ID、手机号和邮箱。
@@ -603,3 +606,38 @@ SDK 相关代码主要在：
 - 套餐续费提醒短信模板建议：`您的W-Agent套餐将于${days_left}天后自动续费，续费金额${renew_amount}元。当前余额${balance}元。`
 - 套餐续费提醒模板变量：`days_left`、`renew_amount`、`balance`
 - 套餐续费失败短信模板建议：`您的W-Agent套餐自动续费失败，应扣${renew_amount}元。请及时充值，连续失败后将关闭自动续费。`
+
+### 11.3 人脸检测 ONNX 模型更新
+
+人脸 Python/C++ 示例使用 `face_detect.onnx` 和 ONNX Runtime CPU 做本地人脸检测、5 点关键点检测和矫正，再调用 `/v1/features/face`。
+
+当前 `face_detect.onnx` 是从于诗琪 `libfacedetection` 的 `facedetectcnn-data.cpp` 静态权重导出。ONNX 只包含 53 层卷积前向；原库特殊的 3x3/stride2/pad32 图像预处理、bbox/keypoint decode、sigmoid、NMS 和双眼仿射矫正仍保留在 Python/C++ 示例代码里。
+
+导出命令：
+
+```bash
+python3 examples/tools/face_detection_onnx/export_face_detect_onnx.py \
+  --source examples/registered/cpp/face_feature_demo/third_party/libfacedetection/src/facedetectcnn-data.cpp \
+  --output examples/registered/cpp/face_feature_demo/face_detect.onnx
+cp examples/registered/cpp/face_feature_demo/face_detect.onnx \
+  examples/registered/python/face_feature_demo/face_detect.onnx
+```
+
+一致性验证命令：
+
+```bash
+g++ -std=c++17 -O2 \
+  -Iexamples/registered/cpp/face_feature_demo \
+  -Iexamples/registered/cpp/face_feature_demo/third_party/libfacedetection/src \
+  -Iexamples/registered/cpp/local_video_to_sequence_demo/third_party/onnxruntime-linux-x64/include \
+  examples/tools/face_detection_onnx/compare_cpp_and_onnx.cpp \
+  examples/registered/cpp/face_feature_demo/facedet_onnx.cpp \
+  examples/registered/cpp/face_feature_demo/third_party/libfacedetection/src/facedetectcnn.cpp \
+  examples/registered/cpp/face_feature_demo/third_party/libfacedetection/src/facedetectcnn-data.cpp \
+  examples/registered/cpp/face_feature_demo/third_party/libfacedetection/src/facedetectcnn-model.cpp \
+  -Lexamples/registered/cpp/local_video_to_sequence_demo/third_party/onnxruntime-linux-x64/lib \
+  -lonnxruntime $(pkg-config --cflags --libs opencv4) \
+  -Wl,-rpath,$PWD/examples/registered/cpp/local_video_to_sequence_demo/third_party/onnxruntime-linux-x64/lib \
+  -o /tmp/compare_face_onnx
+/tmp/compare_face_onnx /tmp/image/face1.png /tmp/image/face2.png
+```

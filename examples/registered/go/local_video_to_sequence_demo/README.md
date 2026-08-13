@@ -1,20 +1,28 @@
-# Go Local Video-To-Sequence Demo
+# Go Local Video Gait API Demo
 
-Input is a video file. This demo:
+Input is a video file. This package builds a complete Go gait recognition demo. It:
 
 1. Runs the local CPU video-to-sequence extractor.
 2. Writes one folder per detected person sequence.
-3. Calls the Go registered Sequence API demo for each generated sequence.
+3. Calls the registered gait sequence API for each generated sequence.
 
 The local detector is C++ for speed and model compatibility; the upload/API
 part is Go.
 
-Run:
+Before building, edit `main.go`:
+
+- `apiKey`: your API Key.
+- `baseURL`: API endpoint. The default is `https://www.w-agent.cn/api`.
+- `videoPath`: default video path if no command-line path is passed.
+
+Build and run:
 
 ```bash
-export GAIT_REGISTERED_API_KEY='gak_your_api_key'
-export GAIT_API_BASE_URL='https://www.w-agent.cn/api'
-./examples/registered/go/local_video_to_sequence_demo/run_local_video_to_sequence_api_demo.sh /path/to/video.mp4
+cmake -S cpp_detector -B cpp_detector/build -DCMAKE_BUILD_TYPE=Release
+cmake --build cpp_detector/build -j
+go build -o local_video_api_demo main.go
+
+./local_video_api_demo /path/to/video.mp4
 ```
 
 Base URL:

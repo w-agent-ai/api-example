@@ -7,11 +7,11 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-
-from persondet_weights import load_weights
+import onnxruntime as ort
 
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
+MODEL_NAME = "gait_detect.onnx"
 
 
 @dataclass
@@ -19,6 +19,8 @@ class Config:
     score_threshold: float = 0.35
     nms_threshold: float = 0.50
     resize_width: int = 640
+    detector_width: int = 640
+    detector_height: int = 352
     default_jump: int = 2
     min_effective_fps: float = 10.0
     max_effective_fps: float = 20.0
@@ -34,30 +36,8 @@ class Config:
     topk: int = 1000
 
 
-def round_to_multiple(value: float, multiple: int = 32) -> int:
-    return max(multiple, int(round(value / multiple)) * multiple)
-
-
 def sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.clip(x, -50.0, 50.0)))
-
-
-def silu(x: np.ndarray) -> np.ndarray:
-    return np.where(x >= 8.0, x, np.where(x <= -8.0, 0.0, x * sigmoid(x))).astype(np.float32, copy=False)
-
-
-def resize_for_detector(image: np.ndarray, resize_width: int):
-    h, w = image.shape[:2]
-    if resize_width <= 0 or max(w, h) <= resize_width:
-        return image, 1.0, 1.0
-    if w >= h:
-        rw = resize_width
-        rh = round_to_multiple(h * rw / w, 32)
-    else:
-        rh = resize_width
-        rw = round_to_multiple(w * rh / h, 32)
-    resized = cv2.resize(image, (rw, rh), interpolation=cv2.INTER_LINEAR)
-    return resized, w / resized.shape[1], h / resized.shape[0]
 
 
 def iou_xyxy(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -93,110 +73,48 @@ def nms(boxes: np.ndarray, scores: np.ndarray, threshold: float, topk: int) -> l
     return keep
 
 
-class PersonDetectorNumpy:
-    def __init__(self, cfg: Config):
+class PersonDetectorONNX:
+    def __init__(self, cfg: Config, model_path: Path | None = None):
         self.cfg = cfg
-        self.w = load_weights()
-        self.strides = (8, 16, 32)
+        self.model_path = Path(model_path or Path(__file__).with_name(MODEL_NAME))
+        if not self.model_path.exists():
+            raise FileNotFoundError(f"person detector ONNX model not found: {self.model_path}")
+        self.session = ort.InferenceSession(str(self.model_path), providers=["CPUExecutionProvider"])
+        self.input_name = self.session.get_inputs()[0].name
+        self.output_names = [item.name for item in self.session.get_outputs()]
 
-    def conv1x1(self, x: np.ndarray, name: str, relu: bool) -> np.ndarray:
-        weight = self.w[name + ".w"][:, :, 0, 0]
-        bias = self.w[name + ".b"]
-        y = x.reshape(-1, x.shape[2]) @ weight.T + bias
-        y = y.reshape(x.shape[0], x.shape[1], weight.shape[0]).astype(np.float32, copy=False)
-        if relu:
-            y = silu(y)
-        return y
+    def detect(self, bgr: np.ndarray):
+        raw_h, raw_w = bgr.shape[:2]
+        det_w = int(self.cfg.detector_width or 640)
+        det_h = int(self.cfg.detector_height or 352)
+        image = cv2.resize(bgr, (det_w, det_h), interpolation=cv2.INTER_LINEAR)
+        tensor = image.astype(np.float32).transpose(2, 0, 1)[None, :, :, :]
+        outputs = self.session.run(None, {self.input_name: tensor})
+        dets = self.decode(outputs, det_w, det_h)
+        sx = raw_w / det_w
+        sy = raw_h / det_h
+        for det in dets:
+            x1, y1, x2, y2 = det["bbox"]
+            det["bbox"] = [x1 * sx, y1 * sy, x2 * sx, y2 * sy]
+        return dets
 
-    def depthwise3x3(self, x: np.ndarray, name: str, stride: int, relu: bool = True) -> np.ndarray:
-        weight = self.w[name + ".dw.w"][:, 0]
-        bias = self.w[name + ".dw.b"]
-        h, w, c = x.shape
-        out_h = (h + 2 - 3) // stride + 1
-        out_w = (w + 2 - 3) // stride + 1
-        y = np.empty((out_h, out_w, c), dtype=np.float32)
-        for ch in range(c):
-            filtered = cv2.filter2D(
-                x[:, :, ch],
-                cv2.CV_32F,
-                weight[ch],
-                borderType=cv2.BORDER_CONSTANT,
-            )
-            y[:, :, ch] = filtered[::stride, ::stride] + bias[ch]
-        if relu:
-            y = silu(y)
-        return y
-
-    def dwblock(self, x: np.ndarray, name: str, stride: int) -> np.ndarray:
-        x = self.depthwise3x3(x, name, stride, True)
-        return self.conv1x1(x, name + ".pw", True)
-
-    def reorg_conv_bgr(self, image: np.ndarray) -> np.ndarray:
-        weight = self.w["stem_reorg.w"][:, :, 0, 0]
-        bias = self.w["stem_reorg.b"]
-        h, w = image.shape[:2]
-        out_h = (h + 1) // 2
-        out_w = (w + 1) // 2
-        padded = np.pad(image.astype(np.float32), ((1, 1), (1, 1), (0, 0)), mode="constant")
-        cols = []
-        for ic in range(3):
-            for ky in range(3):
-                for kx in range(3):
-                    cols.append(padded[ky : ky + h : 2, kx : kx + w : 2, ic][:out_h, :out_w])
-        patches = np.stack(cols, axis=2)
-        y = patches.reshape(-1, 27) @ weight.T + bias
-        y = y.reshape(out_h, out_w, 16).astype(np.float32, copy=False)
-        return silu(y)
-
-    @staticmethod
-    def upsample_nearest(x: np.ndarray, out_h: int, out_w: int) -> np.ndarray:
-        ys = np.minimum(x.shape[0] - 1, np.arange(out_h) * x.shape[0] // out_h)
-        xs = np.minimum(x.shape[1] - 1, np.arange(out_w) * x.shape[1] // out_w)
-        return x[ys[:, None], xs[None, :], :]
-
-    def head(self, x: np.ndarray, name: str):
-        if name + "_stem.dw.w" in self.w:
-            x = self.dwblock(x, name + "_stem", 1)
-        if name + "_extra.dw.w" in self.w:
-            x = self.dwblock(x, name + "_extra", 1)
-        obj = self.conv1x1(x, name + "_obj", False)[:, :, 0]
-        box = self.conv1x1(x, name + "_box", False)
-        return obj, box
-
-    def forward(self, image: np.ndarray):
-        x = self.reorg_conv_bgr(image)
-        x = self.dwblock(x, "stem1", 2)
-        x = self.dwblock(x, "stem2", 2)
-        p8 = self.dwblock(x, "stage8_0", 1)
-        if "stage8_1.dw.w" in self.w:
-            p8 = self.dwblock(p8, "stage8_1", 1)
-        p16 = self.dwblock(p8, "stage16_0", 2)
-        if "stage16_1.dw.w" in self.w:
-            p16 = self.dwblock(p16, "stage16_1", 1)
-        p32 = self.dwblock(p16, "stage32_0", 2)
-        if "stage32_1.dw.w" in self.w:
-            p32 = self.dwblock(p32, "stage32_1", 1)
-
-        u16 = self.conv1x1(p16, "lat16", True) + self.upsample_nearest(p32, p16.shape[0], p16.shape[1])
-        u8 = self.conv1x1(p8, "lat8", True) + self.upsample_nearest(u16, p8.shape[0], p8.shape[1])
-
-        outputs = [(self.head(u8, "head8"), 8), (self.head(u16, "head16"), 16)]
-        if "head32_obj.w" in self.w:
-            outputs.append((self.head(p32, "head32"), 32))
-        return outputs
-
-    def decode(self, outputs, width: int, height: int):
+    def decode(self, outputs: list[np.ndarray], width: int, height: int):
         boxes_all = []
         scores_all = []
-        for (obj, box), stride in outputs:
+        for output, stride in zip(outputs, (8, 16, 32)):
+            if output.ndim != 4 or output.shape[1] < 5:
+                continue
+            pred = output[0]
+            _, h, w = pred.shape
+            obj = pred[4]
             score = sigmoid(obj)
             ys, xs = np.where(score >= self.cfg.score_threshold)
             if len(xs) == 0:
                 continue
-            tx = box[ys, xs, 0]
-            ty = box[ys, xs, 1]
-            tw = np.clip(box[ys, xs, 2], -8.0, 8.0)
-            th = np.clip(box[ys, xs, 3], -8.0, 8.0)
+            tx = pred[0, ys, xs]
+            ty = pred[1, ys, xs]
+            tw = np.clip(pred[2, ys, xs], -8.0, 8.0)
+            th = np.clip(pred[3, ys, xs], -8.0, 8.0)
             bw = np.exp(tw) * stride
             bh = np.exp(th) * stride
             cx = (xs.astype(np.float32) + tx) * stride
@@ -218,15 +136,6 @@ class PersonDetectorNumpy:
             }
             for i in keep
         ]
-
-    def detect(self, bgr: np.ndarray):
-        image, sx, sy = resize_for_detector(bgr, self.cfg.resize_width)
-        outputs = self.forward(image)
-        dets = self.decode(outputs, image.shape[1], image.shape[0])
-        for det in dets:
-            x1, y1, x2, y2 = det["bbox"]
-            det["bbox"] = [x1 * sx, y1 * sy, x2 * sx, y2 * sy]
-        return dets
 
 
 def choose_jump(video_fps: float, cfg: Config) -> int:
@@ -336,8 +245,22 @@ def write_sequence(output_dir: Path, video_stem: str, seq: Sequence, cfg: Config
     return True
 
 
+def append_sequence_frame(seq: Sequence, frame: np.ndarray, frame_id: int, det: dict, cfg: Config):
+    if len(seq.frames) >= cfg.max_frames:
+        return
+    h, w = frame.shape[:2]
+    box = det["box"]
+    det_rect = [int(round(box[0])), int(round(box[1])), int(round(box[2] - box[0])), int(round(box[3] - box[1]))]
+    crop_rect = enlarge_box(box, cfg.enlarge, w, h)
+    if crop_rect[2] <= 0 or crop_rect[3] <= 0:
+        return
+    x, y, cw, ch = crop_rect
+    seq.frames.append({"frame_id": frame_id, "score": det["score"], "det": det_rect, "crop": crop_rect})
+    seq.crops.append(frame[y : y + ch, x : x + cw].copy())
+
+
 def run_video(path: Path, cfg: Config):
-    detector = PersonDetectorNumpy(cfg)
+    detector = PersonDetectorONNX(cfg)
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise FileNotFoundError(path)
@@ -345,6 +268,7 @@ def run_video(path: Path, cfg: Config):
     jump = choose_jump(fps, cfg)
     output_dir = Path(f"{path.stem}_gait_sequences")
     output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"detector=onnxruntime model={detector.model_path}")
     print(f"video_fps={fps:.3f} jump={jump} effective_fps={(fps / jump) if fps > 0 else 0:.3f} output_dir={output_dir}")
 
     tracks: list[Track] = []
@@ -438,22 +362,8 @@ def run_video(path: Path, cfg: Config):
     print(f"done processed={processed} saved_sequences={saved} static_filtered={static_filtered} time_sec={dt:.2f} fps={processed / max(dt, 1e-6):.2f}")
 
 
-def append_sequence_frame(seq: Sequence, frame: np.ndarray, frame_id: int, det: dict, cfg: Config):
-    if len(seq.frames) >= cfg.max_frames:
-        return
-    h, w = frame.shape[:2]
-    box = det["box"]
-    det_rect = [int(round(box[0])), int(round(box[1])), int(round(box[2] - box[0])), int(round(box[3] - box[1]))]
-    crop_rect = enlarge_box(box, cfg.enlarge, w, h)
-    if crop_rect[2] <= 0 or crop_rect[3] <= 0:
-        return
-    x, y, cw, ch = crop_rect
-    seq.frames.append({"frame_id": frame_id, "score": det["score"], "det": det_rect, "crop": crop_rect})
-    seq.crops.append(frame[y : y + ch, x : x + cw].copy())
-
-
 def run_image(path: Path, cfg: Config):
-    detector = PersonDetectorNumpy(cfg)
+    detector = PersonDetectorONNX(cfg)
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     if image is None:
         raise FileNotFoundError(path)
@@ -465,6 +375,6 @@ def run_image(path: Path, cfg: Config):
         x1, y1, x2, y2 = [int(round(v)) for v in det["bbox"]]
         cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(out, f"{det['score']:.2f}", (x1, max(0, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-    out_path = path.with_name(path.stem + "_numpy_det.jpg")
+    out_path = path.with_name(path.stem + "_onnx_det.jpg")
     cv2.imwrite(str(out_path), out)
     print(f"detections={len(dets)} time={ms:.2f}ms output={out_path}")
