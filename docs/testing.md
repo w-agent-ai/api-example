@@ -477,7 +477,7 @@ WHERE partition_name = 'usage_records_2025_06';
 
 - 用户门户：`https://www.w-agent.cn/portal`
 - 页面按“API 示例”和“客户端”拆成两个表格展示；客户端支持接入实时摄像头。客户端文件名较长时在单元格内换行，不使用横向滚动条。
-- 图搜万物 API Key Python：`/portal/demo-download?type=object-search-api-key-python`
+- 图搜万物 API Key Python/C++/Go：`type=object-search-api-key-python`、`type=object-search-api-key-cpp`、`type=object-search-api-key-go`
 - 人体 2D/3D 关节点 API Key Python/C++/Go：`type=pose-api-key-python`、`type=pose-api-key-cpp`、`type=pose-api-key-go`
 - 步态识别 API Key Python/C++/Go：`type=gait-api-key-python`、`type=gait-api-key-cpp`、`type=gait-api-key-go`
 - 图搜万物 X402 Python：`/portal/demo-download?type=object-search-x402-python`

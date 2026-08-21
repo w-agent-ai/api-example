@@ -319,6 +319,8 @@ Management endpoints:
 - `GET /admin`
 - `GET /portal`
 - `GET /portal/demo-download?type=object-search-api-key-python`
+- `GET /portal/demo-download?type=object-search-api-key-cpp`
+- `GET /portal/demo-download?type=object-search-api-key-go`
 - `GET /portal/demo-download?type=pose-api-key-python`
 - `GET /portal/demo-download?type=pose-api-key-cpp`
 - `GET /portal/demo-download?type=pose-api-key-go`
